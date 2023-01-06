@@ -87,26 +87,12 @@ http {
   proxy_set_header X-Forwarded-Port \$proxy_x_forwarded_port;
   proxy_set_header Proxy "";
 
-  proxy_next_upstream error timeout;
-  proxy_next_upstream_timeout 0;
-  proxy_next_upstream_tries 0;
-  proxy_limit_rate 0;
-  proxy_ignore_client_abort off;
-  proxy_intercept_errors off;
-  proxy_force_ranges off;
-  proxy_cookie_flags off;
-  proxy_cookie_path off;
-  proxy_cookie_domain off;
-  proxy_connect_timeout 60s;
-  proxy_ssl_server_name on;
-  proxy_ssl_verify off;
-  proxy_pass_request_body on;
-  proxy_pass_request_headers on;
-  proxy_read_timeout 60s;
-  proxy_request_buffering on;
-  proxy_send_timeout 60s;
-  proxy_socket_keepalive off;
-
+  server {
+    server_name _;
+    server_tokens off;
+    listen 80;
+    return 503;
+  }
 EOF
 
 for i in `seq 100`;do
@@ -127,16 +113,24 @@ for i in `seq 100`;do
   PROXY_HOST=$(echo $line|sed 's#'$EXP'#\9#')
   
   cat <<EOF >> $FILE
+  upstream LISTEN_$i {
+    # for $LISTEN_EX
+    server ${HOST}${PORT};
+  }
+
   server {
     listen 80;
     server_name ${LISTEN_HOST:-_};
     ssl_verify_client off;
     $(test -z "$SERVER_DNS" || echo "resolver ${SERVER_DNS};") 
+
     location / {
       proxy_set_header Host ${PROXY_HOST:-\$proxy_host};
       proxy_set_header X-FROM ${LISTEN_HOST:-_};
       proxy_pass ${PROTOCOL:-http}://${HOST}${PORT}${URL};
       proxy_redirect default;
+      proxy_set_header Upgrade \$http_upgrade;
+      proxy_set_header Connection \$proxy_connection;
     }
   }
 
