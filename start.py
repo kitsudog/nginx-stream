@@ -48,6 +48,7 @@ location {listen_path} {{
   proxy_set_header X-FROM {listen_host};
   proxy_pass {"https" if https else "http"}://{host}:{port}{url};
   proxy_redirect default;
+  proxy_ssl_server_name on;
   proxy_set_header Upgrade $http_upgrade;
   proxy_set_header Connection $proxy_connection;
 }}
@@ -115,8 +116,7 @@ server {{
 
 def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, listen_port=80, dns="8.8.8.8",
                      config_file="/etc/nginx/nginx.conf"):
-    upsteam_config = map(
-        lambda x: upstream_config_gen(**x), listen_config_list)
+    upsteam_config = map(lambda x: upstream_config_gen(**x), listen_config_list)
     proxy_config = []
     for each in proxy_config_list:
         proxy_config.append(proxy_config_gen(**each))
@@ -256,31 +256,37 @@ def main():
     bind_config = []
     forward_config = []
     proxy_config = []
-    for each in os.environ.get("BIND", "").split(";") + list(
-            filter(lambda kv: kv[0].startswith("BIND_"), os.environ.items())):
+    for k, each in list(filter(lambda kv: re.compile("BIND_\d+").match(kv[0]), os.environ.items())) + list(
+            map(lambda x: ("BIND", x), os.environ.get("BIND", "").split(";"))):
         if not each:
             continue
         regex = re.compile('((?P<udp>udp)@)?((?P<listen_port>\d+):)?(?P<host>[^:]+)(:(?P<port>\d+))?')
+        print("check", each)
         config = next(regex.finditer(each)).groupdict()
         config['port'] = int(config['port'] or 80)
         config['listen_port'] = int(config['listen_port'] or config['port'])
+        config['connect_timeout'] = os.environ.get("CONNECT_TIMEOUT", 3)
+        config['timeout'] = os.environ.get("TIMEOUT", 10)
         print(f"BIND[{each}]=>[{config}]")
         bind_config.append(config)
     regex_listen = re.compile(
-        '(?P<listen_host>[^:/]+)(?P<listen_path>/[^:]+)?:(?P<host>[^:/]+)(:(?P<port>\d+))?(?P<url>/[^@]+)?(@(?P<proxy_host>.+))?'
+        '(?P<https>https@)?'
+        '(?P<listen_host>[^:/]+)'
+        '(?P<listen_path>/[^:]+)?'
+        ':(?P<host>[^:/]+)(:(?P<port>\d+))?(?P<url>/[^@]+)?'
+        '(@(?P<proxy_host>.+))?'
     )
     i = 0
 
     def get_listen_config(line, forward=False):
         print("get_listen_config:", line)
         config = next(regex_listen.finditer(line)).groupdict()
-        config['i'] = int(
-            k.split("_")[-1]) if k.startswith("LISTEN_") else 100 + i
+        config['i'] = int(k.split("_")[-1]) if k.startswith("LISTEN_") else 100 + i
         config['port'] = int(config['port'] or 80)
         config['listen_path'] = config['listen_path'] or '/'
+        config['https'] = bool(config['https'])
         config['url'] = config['url'] or config['listen_path']
-        config['proxy_host'] = config['proxy_host'] or (
-            '$http_host' if forward else '$proxy_host')
+        config['proxy_host'] = config['proxy_host'] or ('$http_host' if forward else '$proxy_host')
         print(f"LISTEN[{line}]=>[{config}]")
         config['config'] = f"{k}={line}"
         return config
