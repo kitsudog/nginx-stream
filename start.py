@@ -115,7 +115,7 @@ server {{
 
 
 def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, listen_port=80, dns="8.8.8.8",
-                     config_file="/etc/nginx/nginx.conf"):
+                     config_file="/etc/nginx/nginx.conf", client_size="10m"):
     upsteam_config = map(lambda x: upstream_config_gen(**x), listen_config_list)
     proxy_config = []
     for each in proxy_config_list:
@@ -197,6 +197,13 @@ http {{
   proxy_set_header X-Forwarded-Ssl $proxy_x_forwarded_ssl;
   proxy_set_header X-Forwarded-Port $proxy_x_forwarded_port;
   proxy_set_header Proxy "";
+
+  client_max_body_size      {client_size};
+  client_header_timeout     1m;
+  client_body_timeout       1m;
+  proxy_connect_timeout     60s;
+  proxy_read_timeout        1m;
+  proxy_send_timeout        1m;
 
   server {{
     server_name _;
