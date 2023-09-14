@@ -24,12 +24,12 @@ def format_content(template: str, data: dict):
             else:
                 tmp.append(line)
         lines = tmp
-    return "\n".join(lines)
+    return "\n".join(filter(lambda x: not x.strip().startswith("##"), lines))
 
 
 def upstream_config_gen(i: int, config: str, host: str, port: int, listen_port=80, listen_host="_", server_dns="",
                         listen_path="/", header="FROM", header_value="nginx-stream", proxy_host="$proxy_host",
-                        https=False, url: str = ""):
+                        https=False, url: str = "", ex: bool = False):
     return f"""\
 upstream LISTEN_{i} {{
   # for {config}
@@ -40,12 +40,12 @@ upstream LISTEN_{i} {{
 
 def listen_location_config_gen(i: int, config: str, host: str, port: int, listen_port=80, listen_host="_",
                                server_dns="", listen_path="/", header="FROM", header_value="nginx-stream",
-                               proxy_host="$proxy_host", https=False, url: str = ""):
+                               proxy_host="$proxy_host", https=False, url: str = "", ex: bool = False):
     return f"""\
 location {listen_path} {{
   add_header {header} {header_value};
-  proxy_set_header Host {proxy_host};
   proxy_set_header X-FROM {listen_host};
+  proxy_set_header Host {proxy_host};
   proxy_pass {"https" if https else "http"}://{host}:{port}{url};
   proxy_redirect default;
   proxy_ssl_server_name on;
@@ -57,7 +57,7 @@ location {listen_path} {{
 
 def listen_config_gen0(i: int, config: str, host: str, port: int, listen_port=80, listen_host="_", server_dns="",
                        listen_path="/", header="FROM", header_value="nginx-stream", proxy_host="$proxy_host",
-                       https=False, url: str = ""):
+                       https=False, url: str = "", ex: bool = False):
     kwargs = locals()
     return f"""\
 server {{
@@ -70,7 +70,7 @@ server {{
 
 def listen_config_gen1(i: int, config: str, host: str, port: int, listen_port=80, listen_host="_", server_dns="",
                        listen_path="/", header="FROM", header_value="nginx-stream", proxy_host="$proxy_host",
-                       https=False, url: str = ""):
+                       https=False, url: str = "", ex: bool = False):
     kwargs = locals()
     return f"""\
 }}
@@ -79,9 +79,11 @@ def listen_config_gen1(i: int, config: str, host: str, port: int, listen_port=80
 
 def listen_config_gen(i: int, config: str, host: str, port: int, listen_port=80, listen_host="_", server_dns="",
                       listen_path="/", header="FROM", header_value="nginx-stream", proxy_host="$proxy_host",
-                      https=False, url: str = ""):
+                      https=False, url: str = "", ex: bool = False):
     kwargs = locals()
-    return format_content("""\
+    if ex:
+        kwargs["listen_port"] = 81
+    core = format_content("""\
 %(s)s
   %(c)s
 %(e)s
@@ -90,6 +92,15 @@ def listen_config_gen(i: int, config: str, host: str, port: int, listen_port=80,
         "c": listen_location_config_gen(**kwargs),
         "e": listen_config_gen1(**kwargs),
     })
+    if not ex:
+        return core
+    else:
+        kwargs["listen_port"] = 80
+        kwargs["host"] = "127.0.0.1"
+        kwargs["port"] = 8000
+        kwargs["proxy_host"] = host
+        kwargs["ex"] = False
+        return listen_config_gen(**kwargs) + core
 
 
 def proxy_config_gen(host="", proto="https"):
@@ -115,8 +126,9 @@ server {{
 
 
 def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, listen_port=80, dns="8.8.8.8",
-                     config_file="/etc/nginx/nginx.conf"):
-    upsteam_config = map(lambda x: upstream_config_gen(**x), listen_config_list)
+                     config_file="/etc/nginx/nginx.conf", client_size="10m"):
+    upsteam_config = map(
+        lambda x: upstream_config_gen(**x), listen_config_list)
     proxy_config = []
     for each in proxy_config_list:
         proxy_config.append(proxy_config_gen(**each))
@@ -198,6 +210,13 @@ http {{
   proxy_set_header X-Forwarded-Port $proxy_x_forwarded_port;
   proxy_set_header Proxy "";
 
+  client_max_body_size      {client_size};
+  client_header_timeout     1m;
+  client_body_timeout       1m;
+  proxy_connect_timeout     60s;
+  proxy_read_timeout        1m;
+  proxy_send_timeout        1m;
+
   server {{
     server_name _;
     server_tokens off;
@@ -260,7 +279,8 @@ def main():
             map(lambda x: ("BIND", x), os.environ.get("BIND", "").split(";"))):
         if not each:
             continue
-        regex = re.compile('((?P<udp>udp)@)?((?P<listen_port>\d+):)?(?P<host>[^:]+)(:(?P<port>\d+))?')
+        regex = re.compile(
+            '((?P<udp>udp)@)?((?P<listen_port>\d+):)?(?P<host>[^:]+)(:(?P<port>\d+))?')
         print("check", each)
         config = next(regex.finditer(each)).groupdict()
         config['port'] = int(config['port'] or 80)
@@ -278,32 +298,43 @@ def main():
     )
     i = 0
 
-    def get_listen_config(line, forward=False):
-        print("get_listen_config:", line)
+    def get_listen_config(line, forward=False, **kwargs):
+        if kwargs:
+            print(f"get_listen_config: {line} {kwargs}")
+        else:
+            print(f"get_listen_config: {line}")
         config = next(regex_listen.finditer(line)).groupdict()
-        config['i'] = int(k.split("_")[-1]) if k.startswith("LISTEN_") else 100 + i
+        config['i'] = int(
+            k.split("_")[-1]) if k.startswith("LISTEN_") else 100 + i
         config['port'] = int(config['port'] or 80)
         config['listen_path'] = config['listen_path'] or '/'
         config['https'] = bool(config['https'])
         config['url'] = config['url'] or config['listen_path']
-        config['proxy_host'] = config['proxy_host'] or ('$http_host' if forward else '$proxy_host')
+        config['proxy_host'] = config['proxy_host'] or (
+            '$http_host' if forward else '$proxy_host')
+        config.update(
+            dict(map(lambda kv: (kv[0].lower(), kv[1]), kwargs.items())))
         print(f"LISTEN[{line}]=>[{config}]")
         config['config'] = f"{k}={line}"
         return config
 
-    for k, each in list(filter(lambda kv: re.compile("LISTEN_\d+").match(kv[0]), os.environ.items())) + list(
+    for k, each in list(filter(lambda kv: re.compile("LISTEN_\d+").fullmatch(kv[0]), os.environ.items())) + list(
             map(lambda x: ("LISTEN", x), os.environ.get("LISTEN", "").split(";"))):
         if not each:
             continue
-        print(each)
+        print("listen", k, each)
         i += 1
-        listen_config.append(get_listen_config(each))
+        params = filter(lambda kv: kv[0].startswith(
+            f"{k}_"), os.environ.items())
+        params = dict(
+            map(lambda kv: (kv[0][len(k) + 1:].lower(), kv[1]), params))
+        listen_config.append(get_listen_config(each, **params))
 
     for k, each in list(filter(lambda kv: re.compile("FORWARD_\d+").match(kv[0]), os.environ.items())) + list(
             map(lambda x: ("FORWARD", x), os.environ.get("FORWARD", "").split(";"))):
         if not each:
             continue
-        print(each)
+        print("forward:", each)
         i += 1
         forward_config.append(get_listen_config(each, forward=True))
 

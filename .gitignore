@@ -1,3 +1,5 @@
 docker-compose.yaml
 /venv
 nginx.conf
+.vscode/settings.json
+__pycache__
