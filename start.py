@@ -324,10 +324,11 @@ def main():
             continue
         print("listen", k, each)
         i += 1
-        params = filter(lambda kv: kv[0].startswith(
-            f"{k}_"), os.environ.items())
+        params = filter(lambda kv: kv[0].startswith(f"{k}_"), os.environ.items())
         params = dict(
-            map(lambda kv: (kv[0][len(k) + 1:].lower(), kv[1]), params))
+            map(lambda kv: (kv[0][len(k) + 1:].lower(), kv[1]), params)
+        )
+        params["ex"] = params.get("ex", "false").lower() == "true"
         listen_config.append(get_listen_config(each, **params))
 
     for k, each in list(filter(lambda kv: re.compile("FORWARD_\d+").match(kv[0]), os.environ.items())) + list(
