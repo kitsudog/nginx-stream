@@ -1,13 +1,66 @@
 from gevent import monkey
+
 monkey.patch_all()
+from collections import UserDict
+
+
+class Headers(UserDict):
+    def __init__(self, *args, **kwargs):
+        self.__keys = {}
+        super().__init__(*args, **kwargs)
+
+    def __setitem__(self, key, value):
+        if isinstance(key, str):
+            key_lower = key.lower()
+            if origin_key := self.__keys.get(key_lower):
+                super().__setitem__(origin_key, value)
+            else:
+                origin_key = key
+                self.__keys[key_lower] = key
+                super().__setitem__(origin_key, value)
+        else:
+            origin_key = key
+            self.__keys[key] = origin_key
+            super().__setitem__(origin_key, value)
+
+    def __delitem__(self, key):
+        if isinstance(key, str):
+            key_lower = key.lower()
+            if origin_key := self.__keys.get(key_lower):
+                super().__delitem__(origin_key)
+                del self.__keys[key_lower]
+                return
+        super().__delitem__(key)
+        del self.__keys[key]
+
+    def __getitem__(self, key):
+        if isinstance(key, str):
+            return super().__getitem__(self.__keys[key.lower()])
+        else:
+            return super().__getitem__(key)
+
+    def __contains__(self, key):
+        if super().__contains__(key):
+            return True
+        if isinstance(key, str):
+            return key.lower() in self.__keys
+        else:
+            return False
+
+    def items_lower(self):
+        for k, v in super().items():
+            if isinstance(k, str):
+                yield k.lower(), v
+            else:
+                yield k, v
+
 
 from flask import Flask, request, Response, make_response
-import requests
 import os
 from requests.adapters import HTTPAdapter
 from requests import Session
 import traceback
-from typing import Dict
+from typing import Tuple
 import re
 
 s = Session()
@@ -27,15 +80,22 @@ UPSTREAM_FILTER = list(
 app = Flask(__name__)
 
 
-def filter_response(raw: bytes, headers: Dict) -> bytes:
+def filter_response(raw: bytes, headers: Headers) -> Tuple[bytes, Headers]:
     # 减少多余的content解码
-    print("filter_response", UPSTREAM_FILTER)
+    # print("filter_response", UPSTREAM_FILTER)
     for each in UPSTREAM_FILTER:
-        print(f"run {each}")
-        raw = eval(each)(raw, headers)
-    return raw
+        # print(f"run {each}")
+        ret = eval(each)(raw, headers)
+        if ret is tuple and len(ret) == 2:
+            raw, headers = ret
+        elif ret is bytes:
+            raw = ret
+        else:
+            assert False, f"[filter={each}]实现错误"
+    return raw, headers
 
 
+# noinspection PyBroadException
 @app.route('/', defaults={'path': ''}, methods=["GET", "POST"])
 @app.route('/<path:path>', methods=["GET", "POST"])
 def forward_common(path):
@@ -57,11 +117,12 @@ def forward_common(path):
             response = make_response(('Server Error 503', 503))
             response.headers["proxy-by"] = proxy_by
             return response
-        response_headers = dict()
-        for k, v in response.headers.items():
-            if k.lower() in {"transfer-encoding", "content-encoding", "content-length"}:
-                continue
-            response_headers[k] = v
+        if response.status_code in {301, 302}:
+            print(f"[redirect] {response.headers['Location']}")
+        response_headers = Headers(response.headers)
+        for k in {"transfer-encoding", "content-encoding", "content-length"}:
+            if k in response_headers:
+                del response_headers[k]
         response_headers["proxy-by"] = proxy_by
         return Response(filter_response(response.content, response_headers), response.status_code, response_headers)
     except Exception:
@@ -71,20 +132,32 @@ def forward_common(path):
         return response
 
 
-def replace(raw: bytes, header: Dict) -> bytes:
+# noinspection PyBroadException
+def replace(raw: bytes, headers: Headers) -> Tuple[bytes, Headers]:
     try:
         content = raw.decode("utf8")
+    except Exception:
+        return raw, headers
+
+    def __replace(src):
         for each in filter(bool, os.environ.get("REPLACE", "").split(",")):
             lh, _, rh = each.partition("=>")
-            content = content.replace(lh, rh)
+            src = src.replace(lh, rh)
         for each in filter(bool, os.environ.get("REPLACE_PATTERN", "").split(",")):
             if each[0] != each[-1]:
                 continue
             _, lh, rh, _ = each.split(each[0])
-            content = re.sub(lh, rh, content)
-        return content.encode("utf8")
-    except:
-        return raw
+            src = re.sub(lh, rh, src)
+        return src
+
+    content = __replace(content)
+    # 针对Set-Cookie处理
+    if "set-cookie" in headers:
+        headers["set-cookie"] = __replace(headers["set-cookie"])
+    # 针对Set-Cookie处理
+    if "location" in headers:
+        headers["location"] = __replace(headers["location"])
+    return content.encode("utf8"), headers
 
 
 if __name__ == '__main__':
