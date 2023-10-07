@@ -48,10 +48,11 @@ def forward_common(path):
     try:
         if request.method == "GET":
             response = s.get(f'{UPSTREAM_PROTO}://{UPSTREAM_HOST}:{UPSTREAM_PORT}/{path}',
-                             headers=headers, params=request.args, timeout=UPSTREAM_TIMEOUT)
+                             headers=headers, params=request.args, timeout=UPSTREAM_TIMEOUT, allow_redirects=False)
         elif request.method == "POST":
             response = s.post(f'{UPSTREAM_PROTO}://{UPSTREAM_HOST}:{UPSTREAM_PORT}/{path}',
-                              headers=headers, params=request.args, data=request.get_data(), timeout=UPSTREAM_TIMEOUT)
+                              headers=headers, params=request.args, data=request.get_data(), timeout=UPSTREAM_TIMEOUT,
+                              allow_redirects=False)
         else:
             response = make_response(('Server Error 503', 503))
             response.headers["proxy-by"] = proxy_by
