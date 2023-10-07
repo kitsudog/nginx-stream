@@ -71,16 +71,19 @@ def forward_common(path):
 
 
 def replace(raw: bytes, header: Dict) -> bytes:
-    content = raw.decode("utf8")
-    for each in filter(bool, os.environ.get("REPLACE", "").split(",")):
-        lh, _, rh = each.partition("=>")
-        content = content.replace(lh, rh)
-    for each in filter(bool, os.environ.get("REPLACE_PATTERN", "").split(",")):
-        if each[0] != each[-1]:
-            continue
-        _, lh, rh, _ = each.split(each[0])
-        content = re.sub(lh, rh, content)
-    return content.encode("utf8")
+    try:
+        content = raw.decode("utf8")
+        for each in filter(bool, os.environ.get("REPLACE", "").split(",")):
+            lh, _, rh = each.partition("=>")
+            content = content.replace(lh, rh)
+        for each in filter(bool, os.environ.get("REPLACE_PATTERN", "").split(",")):
+            if each[0] != each[-1]:
+                continue
+            _, lh, rh, _ = each.split(each[0])
+            content = re.sub(lh, rh, content)
+        return content.encode("utf8")
+    except:
+        return raw
 
 
 if __name__ == '__main__':
