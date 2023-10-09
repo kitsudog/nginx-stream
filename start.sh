@@ -14,6 +14,10 @@ if [ -n "${REPLACE}" ] || [ -n "${REPLACE_PATTERN}" ]; then
     export UPSTREAM_FILTER="replace"
     export EX=TRUE
 fi
+if [ ! -z "${FILTER_EXPR}" ];then
+    tcpdump -G ${TCPDUMP_DURATION:-60} tcp -s0 -w /pcap/data-%H%M.pcap &
+    python3 /app/pcaper.py &
+fi
 if [ "${EX}" == "TRUE" ];then
     python3 /app/app.py &
 fi

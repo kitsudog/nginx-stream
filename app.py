@@ -86,11 +86,12 @@ def filter_response(raw: bytes, headers: Headers) -> Tuple[bytes, Headers]:
     for each in UPSTREAM_FILTER:
         # print(f"run {each}")
         ret = eval(each)(raw, headers)
-        if ret is tuple and len(ret) == 2:
-            raw, headers = ret
-        elif ret is bytes:
+        if isinstance(ret, tuple) and len(ret) == 2:
+            raw, headers = ret[0], ret[1]
+        elif isinstance(ret, bytes):
             raw = ret
         else:
+            print(type(ret))
             assert False, f"[filter={each}]实现错误"
     return raw, headers
 
@@ -124,7 +125,8 @@ def forward_common(path):
             if k in response_headers:
                 del response_headers[k]
         response_headers["proxy-by"] = proxy_by
-        return Response(filter_response(response.content, response_headers), response.status_code, response_headers)
+        content, headers = filter_response(response.content, response_headers)
+        return Response(content, response.status_code, dict(headers))
     except Exception:
         traceback.print_exc()
         response = make_response(('Bad Gateway 502', 502))
@@ -135,6 +137,7 @@ def forward_common(path):
 # noinspection PyBroadException
 def replace(raw: bytes, headers: Headers) -> Tuple[bytes, Headers]:
     try:
+        # todo: 只针对部分做
         content = raw.decode("utf8")
     except Exception:
         return raw, headers
@@ -163,5 +166,5 @@ def replace(raw: bytes, headers: Headers) -> Tuple[bytes, Headers]:
 if __name__ == '__main__':
     from gevent import pywsgi
 
-    server = pywsgi.WSGIServer(('0.0.0.0', 8000), app)
+    server = pywsgi.WSGIServer(('0.0.0.0', 8000), app, log=None)
     server.serve_forever()
