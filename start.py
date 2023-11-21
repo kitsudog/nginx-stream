@@ -125,6 +125,7 @@ server {{
 """
 
 
+# noinspection HttpUrlsUsage
 def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, listen_port=80, dns="8.8.8.8",
                      config_file="/etc/nginx/nginx.conf", client_size="10m"):
     upsteam_config = map(
@@ -161,12 +162,12 @@ events {{
     worker_connections  10240;
 }}
 http {{
-  resolver {dns} valid=5 ipv6=off;
+  resolver {dns} valid=60s ipv6=off;
   include       /etc/nginx/mime.types;
   default_type  application/octet-stream;
-  log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+  log_format  main  '$remote_addr $http_host $remote_user [$time_local] "$request" '
                     '$status $body_bytes_sent "$http_referer" '
-                    '"$http_user_agent" "$http_x_forwarded_for"' [Proxy-pass=$upstream_addr];
+                    '"$http_user_agent" "$http_x_forwarded_for"' [Proxy-pass=$upstream_addr @ $dest_host];
 
   access_log  /var/log/nginx/access.log  main;
   sendfile        on;
@@ -221,9 +222,49 @@ http {{
     server_name _;
     server_tokens off;
     listen 80;
-    location / {{
-        return 503;
+    
+    set $dest_host $http_host;
+    
+    if ($http_full_url ~ "^https?://([^/]+)") {{
+        set $dest_host $1;
+        set $full_url $http_full_url;
     }}
+    
+    if ($request_uri ~ "^/([^/]*)/http://([^/]*)/(.*)$") {{
+        set $dest_ip $1;
+        set $dest_host $2;
+        set $url $3;
+        set $full_url "http://${{dest_ip}}/${{url}}";
+    }}
+    
+    if ($request_uri ~ "^/([^/]*)/https://([^/]*)/(.*)$") {{
+        set $dest_ip $1;
+        set $dest_host $2;
+        set $url $3;
+        set $full_url "https://${{dest_ip}}/${{url}}";
+    }}
+    
+    if ($request_uri ~ "^/https://([^/]*)/(.*)$") {{
+        set $dest_host $1;
+        set $url $2;
+        set $full_url "https://${{dest_host}}/${{url}}";
+    }}
+    
+    if ($request_uri ~ "^/http://([^/]*)/(.*)$") {{
+        set $dest_host $1;
+        set $url $2;
+        set $full_url "http://${{dest_host}}/${{url}}";
+    }}
+    
+    location / {{
+        proxy_ssl_server_name on;
+        proxy_pass "${{full_url}}";
+        add_header proxy-by nginx-stream;
+        add_header proxy-host $dest_host;
+        add_header proxy-upstream $upstream_addr;
+        proxy_set_header Host "$dest_host";
+    }}
+    
     # PROXY START
     %(proxy)s
     # PROXY END
@@ -280,7 +321,8 @@ def main():
         if not each:
             continue
         regex = re.compile(
-            '((?P<udp>udp)@)?((?P<listen_port>\d+):)?(?P<host>[^:]+)(:(?P<port>\d+))?')
+            '((?P<udp>udp)@)?((?P<listen_port>\d+):)?(?P<host>[^:]+)(:(?P<port>\d+))?'
+        )
         print("check", each)
         config = next(regex.finditer(each)).groupdict()
         config['port'] = int(config['port'] or 80)

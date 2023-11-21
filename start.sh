@@ -15,6 +15,7 @@ if [ -n "${REPLACE}" ] || [ -n "${REPLACE_PATTERN}" ]; then
     export EX=TRUE
 fi
 if [ ! -z "${FILTER_EXPR}" ];then
+    mkdir -p /pcap
     tcpdump -G ${TCPDUMP_DURATION:-60} tcp -s0 -w /pcap/data-%H%M.pcap &
     python3 /app/pcaper.py &
 fi
