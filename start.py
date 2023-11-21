@@ -225,9 +225,9 @@ http {{
     
     set $dest_host $http_host;
     
-    if ($http_full_url ~ "^https?://([^/]+)") {{
+    if ($cookie_dest ~ "^https?://([^/]*)/$") {{
         set $dest_host $1;
-        set $full_url $http_full_url;
+        set $full_url $cookie_dest;
     }}
     
     if ($request_uri ~ "^/([^/]*)/http://([^/]*)/(.*)$") {{
@@ -262,6 +262,15 @@ http {{
         add_header proxy-by nginx-stream;
         add_header proxy-host $dest_host;
         add_header proxy-upstream $upstream_addr;
+
+        add_header 'Access-Control-Allow-Origin' '${{dest_host}}';
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+        add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range';
+        add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range';
+        if ($request_method = 'OPTIONS') {{
+            return 204;
+        }}
+        
         proxy_set_header Host "$dest_host";
     }}
     
