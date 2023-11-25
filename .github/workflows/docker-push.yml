@@ -33,7 +33,7 @@ jobs:
           file: .ci/Dockerfile
           build-args: |
             BUILD=github
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          platforms: linux/amd64
           push: true
           tags: |
             ${{ secrets.DOCKER_HUB_USERNAME }}/nginx-stream:latest
