@@ -14,10 +14,12 @@ if [ -n "${REPLACE}" ] || [ -n "${REPLACE_PATTERN}" ]; then
     export UPSTREAM_FILTER="replace"
     export EX=TRUE
 fi
-if [ ! -z "${FILTER_EXPR}" ];then
+if [ "${RECORD}" = "TRUE" ];then
     mkdir -p /pcap
-    tcpdump -G ${TCPDUMP_DURATION:-60} tcp -s0 -w /pcap/data-%H%M.pcap &
-    python3 /app/pcaper.py &
+    tcpdump -G ${TCPDUMP_DURATION:-60} tcp -i eth0 -s0 -w /pcap/data-%H%M.pcap &
+    if [ "${FILTER_EXPR}" ];then
+        python3 /app/pcaper.py &
+    fi
 fi
 if [ "${EX}" == "TRUE" ];then
     python3 /app/app.py &

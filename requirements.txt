@@ -1,7 +1,8 @@
-requests
+requests[socks]
 gevent
 flask
 dpkt
 python-dateutil
 redis==3.5.3
 pymongo==3.11.4
+dnspython==1.16.0

@@ -57,16 +57,24 @@ class Headers(UserDict):
 
 from flask import Flask, request, Response, make_response
 import os
-from requests.adapters import HTTPAdapter
+from requests.adapters import HTTPAdapter, DEFAULT_RETRIES
 from requests import Session
 import traceback
 from typing import Tuple
 import re
 
 s = Session()
-adapter = HTTPAdapter(max_retries=1)
+adapter = HTTPAdapter(max_retries=DEFAULT_RETRIES)
 s.mount('http://', adapter)
 s.mount('https://', adapter)
+s.proxies = {}
+if all_proxy := os.environ.get("ALL_PROXY") or os.environ.get("all_proxy"):
+    s.proxies["http"] = all_proxy
+    s.proxies["https"] = all_proxy
+if http_proxy := os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy"):
+    s.proxies["http"] = http_proxy
+if https_proxy := os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy"):
+    s.proxies["http"] = https_proxy
 
 UPSTREAM_PROTO = "http"
 UPSTREAM_HOST = os.environ.get("UPSTREAM_HOST", "127.0.0.1")
@@ -108,12 +116,18 @@ def forward_common(path):
     proxy_by = "nginx-stream:ex:" + headers["HOST"]
     try:
         if request.method == "GET":
-            response = s.get(f'{UPSTREAM_PROTO}://{UPSTREAM_HOST}:{UPSTREAM_PORT}/{path}',
-                             headers=headers, params=request.args, timeout=UPSTREAM_TIMEOUT, allow_redirects=False)
+            # noinspection PyTypeChecker
+            response = s.get(
+                f'{UPSTREAM_PROTO}://{UPSTREAM_HOST}:{UPSTREAM_PORT}/{path}',
+                headers=headers, params=request.args, timeout=UPSTREAM_TIMEOUT, allow_redirects=False
+            )
         elif request.method == "POST":
-            response = s.post(f'{UPSTREAM_PROTO}://{UPSTREAM_HOST}:{UPSTREAM_PORT}/{path}',
-                              headers=headers, params=request.args, data=request.get_data(), timeout=UPSTREAM_TIMEOUT,
-                              allow_redirects=False)
+            # noinspection PyTypeChecker
+            response = s.post(
+                f'{UPSTREAM_PROTO}://{UPSTREAM_HOST}:{UPSTREAM_PORT}/{path}',
+                headers=headers, params=request.args, data=request.get_data(), timeout=UPSTREAM_TIMEOUT,
+                allow_redirects=False
+            )
         else:
             response = make_response(('Server Error 503', 503))
             response.headers["proxy-by"] = proxy_by
