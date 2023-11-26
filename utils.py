@@ -140,34 +140,14 @@ class HTTPParser:
         return body
 
     def response_body(self, body: bytes, headers: Dict):
-        if headers.get("transfer-encoding", "").lower() == "chunked":
-            assert body.endswith(b"0\r\n\r\n"), "chunked incomplete"
-            buffer = body[:-5]
-            body = bytes()
-            size = 0
-            while buffer:
-                if size <= 0:
-                    size, _, buffer = buffer.partition(b"\r\n")
-                    size = int(size, 16)
-                    continue
-                else:
-                    if len(buffer) >= size:
-                        body += buffer[:size]
-                        buffer = buffer[size + 2:]
-                        size = 0
-                    else:
-                        body += buffer
-                        buffer = bytes()
-        else:
-            pass
+        body = self.parse_body(BytesIO(body), headers)
         encoding = headers.get("content-encoding", "").lower()
         if encoding == "gzip":
             with gzip.GzipFile(fileobj=BytesIO(body), mode='rb') as f:
                 body = f.read()
-
         return body
 
-    def parse_response(self, data: bytes, request: Dict) -> Optional[Dict]:
+    def parse_response(self, data: bytes, request: bytes) -> Optional[Dict]:
         if not data:
             return None
         origin, _, body = data.partition(b"\r\n\r\n")
@@ -186,9 +166,10 @@ class HTTPParser:
         status_code = int(first_line[1])
         status = " ".join(first_line[2:])
         body = self.response_body(body, headers)
-        request_origin: str = request.decode("utf8", "replace")
-        tmp = self.parse_request(request_origin)
-        tmp["origin"] = request_origin.partition("\r\n\r\n")[0]
+        request_header_raw, _, request_header_body = request.partition(b"\r\n\r\n")
+        http_request = HTTPRequest(self.parse_request(request_header_raw.decode("utf8", "replace")))
+        http_request.origin = request_header_raw
+        http_request.body = self.parse_body(request_header_body, http_request.headers)
         return {
             "protocol": protocol,
             "status_code": status_code,
@@ -197,7 +178,7 @@ class HTTPParser:
             "origin": origin,
             "origin_headers": origin_headers,
             "body": body,
-            "request": HTTPRequest(tmp),
+            "request": http_request,
         }
 
     def parse_request(self, data, fix_incomplete=False):
@@ -471,6 +452,7 @@ class PcapParser:
         self.info['incorrect'] = 0
         self.info['incomplete'] = 0
         self.parser = HTTPParser()
+        self.last_stream = {}
 
     def read_pcap(self, params):
         """Read pcap-file and return iterator for assembled HTTP requests
@@ -502,7 +484,7 @@ class PcapParser:
                       "mergecap %s -w out.pcap -F pcap\"\n" % params['input'])
                 raise
 
-        streams = dict()
+        self.last_stream = streams = dict()
         if "filter" in params:
             params['filter'] = self.prepare_filter(params['filter'])
         else:
@@ -510,7 +492,7 @@ class PcapParser:
         if "http_filter" not in params:
             params['http_filter'] = None
 
-        for timestamp, packet in pcap:
+        for no, (timestamp, packet) in enumerate(pcap, start=1):
             try:
                 eth_packet = dpkt.ethernet.Ethernet(packet)
             except (dpkt.dpkt.NeedData, dpkt.dpkt.UnpackError):
@@ -518,16 +500,51 @@ class PcapParser:
             ip_packet = eth_packet.data
             if not hasattr(ip_packet, 'data'):
                 continue
+            # 跳过udp
+            if isinstance(ip_packet.data, UDP):
+                continue
             tcp_packet = ip_packet.data
             if not hasattr(tcp_packet, 'data'):
                 continue
+            tcp_packet.raw = tcp_packet.data
             tcp_packet.data = tcp_packet.data.decode("utf-8", "replace")
 
             # remove cache on new or final packets
-            if self.tcp_flags(tcp_packet.flags) in ("S", "R", "F"):
+            flags = self.tcp_flags(tcp_packet.flags)
+            if flags in ("S", "R", "F"):
                 if tcp_packet.sport in streams:
                     self.info['incomplete'] = self.info['incomplete'] + 1
                     del streams[tcp_packet.sport]
+                continue
+            # response continue
+            if tcp_packet.data and tcp_packet.dport in streams:
+                if "response_raw" in streams[tcp_packet.dport]:
+                    # size - limit
+                    if len(streams[tcp_packet.dport]['response_raw']) < 1 * 1024 * 1024:
+                        streams[tcp_packet.dport]['response_raw'] += tcp_packet.raw
+            if "F" in flags:
+                # 常规的response+close
+                if tcp_packet.sport in streams:
+                    data = streams[tcp_packet.sport]
+                    del streams[tcp_packet.sport]
+                elif tcp_packet.dport in streams:
+                    data = streams[tcp_packet.dport]
+                    del streams[tcp_packet.dport]
+                else:
+                    data = {}
+                if response := self.parser.parse_response(data.get("response_raw"), data.get("request_raw")):
+                    response["no"] = no
+                    response["timestamp"] = timestamp
+                    yield HTTPResponse(response)
+                continue
+            elif tcp_packet.raw == b"0\r\n\r\n" and tcp_packet.dport in streams:
+                # is chunk response
+                data = streams[tcp_packet.dport]
+                del streams[tcp_packet.dport]
+                if response := self.parser.parse_response(data.get("response_raw"), data.get("request_raw")):
+                    response["no"] = no
+                    response["timestamp"] = timestamp
+                    yield HTTPResponse(response)
                 continue
             # filter tcp packets
             # not empty
@@ -541,17 +558,23 @@ class PcapParser:
                     tcp_packet
             ):
                 continue
+            # HTTP response
+            if self.parser.starts_with_http_response(tcp_packet.data):
+                # 为了可以连续拼接response
+                self.info['total'] = self.info['total'] + 1
+                streams[tcp_packet.dport]['response_raw'] = tcp_packet.raw
             # HTTP request
-            if self.parser.starts_with_http_method(tcp_packet.data):
+            elif self.parser.starts_with_http_method(tcp_packet.data):
                 self.info['total'] = self.info['total'] + 1
                 streams[tcp_packet.sport] = {
                     'data': tcp_packet.data,
+                    'request_raw': tcp_packet.raw,
                     'timestamp': timestamp
                 }
             # the next packet
             elif tcp_packet.sport in streams:
-                streams[tcp_packet.sport]['data'] = \
-                    streams[tcp_packet.sport]['data'] + tcp_packet.data
+                streams[tcp_packet.sport]['data'] = streams[tcp_packet.sport]['data'] + tcp_packet.data
+                streams[tcp_packet.sport]['request_raw'] += tcp_packet.raw
             else:
                 continue
             if tcp_packet.sport in streams:
@@ -562,14 +585,13 @@ class PcapParser:
                     self.info['incorrect'] = self.info['incorrect'] + 1
                     del streams[tcp_packet.sport]
                     continue
-                http_request['origin'] = \
-                    streams[tcp_packet.sport]['data']
-                http_request['timestamp'] = \
-                    streams[tcp_packet.sport]['timestamp']
+                http_request['origin'] = streams[tcp_packet.sport]['data']
+                http_request['timestamp'] = streams[tcp_packet.sport]['timestamp']
                 if not self.parser.is_complete_request(http_request):
                     continue
                 self.info['complete'] = self.info['complete'] + 1
-                del streams[tcp_packet.sport]
+                # wait for response
+                # del streams[tcp_packet.sport]
                 http_request['src'] = socket.inet_ntoa(ip_packet.src)
                 http_request['dst'] = socket.inet_ntoa(ip_packet.dst)
                 http_request['sport'] = tcp_packet.sport

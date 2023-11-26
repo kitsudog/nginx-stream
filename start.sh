@@ -16,7 +16,7 @@ if [ -n "${REPLACE}" ] || [ -n "${REPLACE_PATTERN}" ]; then
 fi
 if [ "${RECORD}" = "TRUE" ];then
     mkdir -p /pcap
-    tcpdump -G ${TCPDUMP_DURATION:-60} tcp -i eth0 -s0 -w /pcap/data-%H%M.pcap &
+    tcpdump -G ${TCPDUMP_DURATION:-60} tcp -i eth0 -s0 -w /pcap/data-%F_%H%M.pcap &
     # 默认清理12h前的
     KEEP_TIME=${KEEP_TIME:-720}
     sh -c "while true;do sleep 60;find /pcap -type f -mmin ${KEEP_TIME}|xargs -r rm -v;done;" &

@@ -22,6 +22,7 @@ class HTTPResponse(http.Response):
         super().__init__(*args, **kwargs)
         self.no = 0
         self.__dict = response_dict
+        self.__content = None
         self.protocol = ''
         self.request: Optional[HTTPRequest] = None
         self.status_code = 0
@@ -46,33 +47,37 @@ class HTTPResponse(http.Response):
 
     @property
     def content(self):
-        headers, body = self.headers, self.body
-        original_content_type = headers.get("content-type", "").lower()
-        content_type, _, content_type2 = original_content_type.partition(";")[0].partition("/")
+        if self.__content:
+            return self.__content
 
-        if content_type in {"text"} or "charset" in original_content_type:
-            if "utf-8" in original_content_type or "utf8" in original_content_type:
-                content = body.decode("utf8")
-            else:
-                content = body.decode("utf8", "replace")
-        elif content_type in {"image"}:
-            if "svg" in content_type:
-                content = body.decode("utf8")
-            else:
-                content = body
-        elif content_type in {"audio", "video"}:
-            if "svg" in content_type:
-                content = body.decode("utf8")
-            else:
-                content = body
-        elif content_type in {"application"}:
-            if content_type2 in {"octet-stream"}:
-                content = body
-            else:
-                content = body.decode("utf8", "replace")
-        else:
-            content = body
-        return content
+        # headers, body = self.headers, self.body
+        # original_content_type = headers.get("content-type", "").lower()
+        # content_type, _, content_type2 = original_content_type.partition(";")[0].partition("/")
+        #
+        # if content_type in {"text"} or "charset" in original_content_type:
+        #     if "utf-8" in original_content_type or "utf8" in original_content_type:
+        #         content = body.decode("utf8")
+        #     else:
+        #         content = body.decode("utf8", "replace")
+        # elif content_type in {"image"}:
+        #     if "svg" in content_type:
+        #         content = body.decode("utf8")
+        #     else:
+        #         content = body
+        # elif content_type in {"audio", "video"}:
+        #     if "svg" in content_type:
+        #         content = body.decode("utf8")
+        #     else:
+        #         content = body
+        # elif content_type in {"application"}:
+        #     if content_type2 in {"octet-stream"}:
+        #         content = body
+        #     else:
+        #         content = body.decode("utf8", "replace")
+        # else:
+        #     content = body
+        self.__content = self.body.decode("utf8", "replace")
+        return self.__content
 
     def build(self, response_dict):
         if 'no' in response_dict:

@@ -255,6 +255,7 @@ def to_header_dict(lines):
 
 FILTER_EXPR = os.environ.get("FILTER_EXPR")
 FROM = os.environ.get("FROM") or os.environ.get("HOSTNAME")
+VERBOSE = os.environ.get("VERBOSE") == "TRUE"
 
 
 # noinspection PyBroadException
@@ -281,9 +282,7 @@ def main():
             try:
                 buffer = []
                 parser = PcapParser()
-                for packet in parser.read_pcap({"input": file}):
-                    if not isinstance(packet, HTTPResponse):
-                        continue
+                for packet in filter(lambda x: isinstance(x, HTTPResponse), parser.read_pcap({"input": file})):
                     skip = False
                     for filter_expr in request_filter_expr_list:
                         if not filter_expr.match_request(packet.request):
@@ -304,7 +303,8 @@ def main():
                             "body": packet.body[:1000].decode("utf8", "replace"),
                         },
                     }
-                    print(json.dumps(record))
+                    if VERBOSE:
+                        print(json.dumps(record))
                     record.update({
                         "request": {
                             "origin": packet.request.origin_request,
@@ -321,8 +321,12 @@ def main():
                         "from": FROM,
                     })
                     buffer.append(record)
+                print(f"parser [file={file}] [match={len(buffer)}]")
+                if parser.last_stream:
+                    print(f"parser [file={file}] not complete [stream_len={len(parser.last_stream)}]")
                 if buffer and mongo:
-                    mongo.insert_many(buffer)
+                    ret = mongo.insert_many(buffer)
+                    print(f"parser [file={file}] [submit={len(ret.inserted_ids)}]")
             except Exception:
                 traceback.print_exc()
             finally:
