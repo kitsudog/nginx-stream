@@ -296,7 +296,7 @@ def main():
                         continue
                     record = {
                         "timestamp": int(packet.timestamp * 1000),
-                        "url": f"{packet.request.headers['host']}/{packet.request.uri}",
+                        "url": f"{packet.request.headers.get('host')}/{packet.request.uri}",
                         "size": len(packet.origin) + len(packet.body) +
                                 len(packet.request.origin) + len(packet.request.body),
                         "response": {

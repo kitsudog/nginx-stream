@@ -24,13 +24,13 @@ class HTTPRequest(http.Request):
         self.method = ''
         self.headers = {}
         self.origin_headers = {}
-        self.body = ''
+        self.body = b''
         self.timestamp = ''
         self.src = ''
         self.sport = ''
         self.dst = ''
         self.dport = ''
-        self.origin = ''
+        self.origin = b''
         if request_dict:
             self.build(request_dict)
 

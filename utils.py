@@ -93,7 +93,7 @@ class HTTPParser:
                 return int(http_request['headers']['content-length'])
         return None
 
-    def parse_body(self, file, headers, fix_incomplete=False):
+    def parse_body(self, file: BytesIO, headers, fix_incomplete=False):
         """Return HTTP body parsed from a file object, given HTTP header dict
 
         Args:
@@ -169,7 +169,7 @@ class HTTPParser:
         request_header_raw, _, request_header_body = request.partition(b"\r\n\r\n")
         http_request = HTTPRequest(self.parse_request(request_header_raw.decode("utf8", "replace")))
         http_request.origin = request_header_raw
-        http_request.body = self.parse_body(request_header_body, http_request.headers)
+        http_request.body = self.parse_body(BytesIO(request_header_body), http_request.headers)
         return {
             "protocol": protocol,
             "status_code": status_code,
@@ -235,7 +235,9 @@ class HTTPParser:
             request['body'] = self.parse_body(
                 file, request['headers'],
                 fix_incomplete).decode('ascii', 'ignore')
-        except (dpkt.dpkt.NeedData, dpkt.dpkt.UnpackError):
+        except dpkt.dpkt.NeedData:
+            return request
+        except dpkt.dpkt.UnpackError:
             return None
         return request
 
