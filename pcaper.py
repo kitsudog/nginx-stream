@@ -18,7 +18,7 @@ import re
 import time
 import traceback
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 import pymongo
 from redis.client import Redis
@@ -32,9 +32,10 @@ class Filter:
     def __init__(self, params):
         self.params = params
         if regex := params.get("regex"):
-            self.regex = re.compile(regex)
+            regex = re.compile(regex)
         else:
-            self.regex = None
+            regex = None
+        self.regex: Optional[re.Pattern] = regex
 
     def __str__(self):
         if self.params.get("regex"):
@@ -90,7 +91,7 @@ class Filter_hq(RequestFilter):
     """
 
     def match_request(self, req: HTTPRequest):
-        if self.regex.search(req.origin_request):
+        if self.regex.search(req.origin):
             return True
         return False
 
@@ -282,7 +283,10 @@ def main():
             try:
                 buffer = []
                 parser = PcapParser()
-                for packet in filter(lambda x: isinstance(x, HTTPResponse), parser.read_pcap({"input": file})):
+                for packet in filter(
+                        lambda x: isinstance(x, HTTPResponse),
+                        parser.read_pcap({"input": file})
+                ):  # type: HTTPResponse
                     skip = False
                     for filter_expr in request_filter_expr_list:
                         if not filter_expr.match_request(packet.request):
@@ -307,8 +311,8 @@ def main():
                         print(json.dumps(record))
                     record.update({
                         "request": {
-                            "origin": packet.request.origin_request,
-                            "header": to_header_dict(packet.request.origin_request.split("\r\n")[1:]),
+                            "origin": packet.request.origin,
+                            "header": to_header_dict(packet.request.origin.split("\r\n")[1:]),
                             "body": packet.request.body,
                         },
                         "response": {

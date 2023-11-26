@@ -19,6 +19,7 @@ from HTTPRequest import HTTPRequest
 from HTTPResponse import HTTPResponse
 
 
+# noinspection PyProtectedMember,PyMethodMayBeStatic
 class HTTPParser:
     """Parse HTTP request"""
 
@@ -33,11 +34,11 @@ class HTTPParser:
             return True
         return False
 
-    def starts_with_http_method(self, http_request):
+    def starts_with_http_method(self, http_request: str):
         """Check the packet starts with HTTP method
 
         Args:
-            data (str): HTTP request
+            http_request (str): HTTP request
 
         Returns:
             bool: returns True if TCP packet data
@@ -49,11 +50,11 @@ class HTTPParser:
                 return True
         return False
 
-    def is_complete_request(self, http_request):
+    def is_complete_request(self, http_request: dict):
         """Check that HTTP request is complete
 
         Args:
-            http_request (str): HTTP request
+            http_request : HTTP request
 
         Returns:
             bool: returns True if HTTP request is complete
@@ -72,11 +73,11 @@ class HTTPParser:
             return True
         return False
 
-    def get_content_length(self, http_request):
+    def get_content_length(self, http_request: dict):
         """Get Content-Length header value
 
         Args:
-            http_request (str): HTTP request
+            http_request: HTTP request
 
         Returns:
             str: returns Content-Length value
@@ -93,7 +94,7 @@ class HTTPParser:
                 return int(http_request['headers']['content-length'])
         return None
 
-    def parse_body(self, file: BytesIO, headers, fix_incomplete=False):
+    def parse_body(self, file: BytesIO, headers, fix_incomplete=False) -> bytes:
         """Return HTTP body parsed from a file object, given HTTP header dict
 
         Args:
@@ -167,7 +168,8 @@ class HTTPParser:
         status = " ".join(first_line[2:])
         body = self.response_body(body, headers)
         request_header_raw, _, request_header_body = request.partition(b"\r\n\r\n")
-        http_request = HTTPRequest(self.parse_request(request_header_raw.decode("utf8", "replace")))
+        request_header_raw = request_header_raw.decode("utf8", "replace")
+        http_request = HTTPRequest(self.parse_request(request_header_raw))
         http_request.origin = request_header_raw
         http_request.body = self.parse_body(BytesIO(request_header_body), http_request.headers)
         return {
@@ -181,7 +183,7 @@ class HTTPParser:
             "request": http_request,
         }
 
-    def parse_request(self, data, fix_incomplete=False):
+    def parse_request(self, data, fix_incomplete=False) -> Optional[dict]:
         """Parse HTTP request to dict structure:
             "version": protocol version
             "method":  request method
@@ -399,7 +401,7 @@ class TextParser:
         for request in self.read_records(params['input'], self.delimiter):
             # HTTP request
             if self.parser.starts_with_http_method(request):
-                self.info['total'] = self.info['total'] + 1
+                self.info['total'] += 1
             # the next packet
             else:
                 continue
@@ -442,6 +444,7 @@ class TextParser:
         return True
 
 
+# noinspection PyMethodMayBeStatic
 class PcapParser:
     """HTTP requests iterator for pcap-file"""
 
@@ -650,6 +653,7 @@ class PcapParser:
         """
 
         def inet_filter(element):
+            # noinspection RegExpDuplicateCharacterInClass,RegExpRedundantEscape
             match = re.search(
                 r'(ip.(?:src|dst).*?)(["\"]?[\d\.]+["\"]?)',
                 element
@@ -660,6 +664,7 @@ class PcapParser:
             return element
 
         if filter_string:
+            # noinspection RegExpDuplicateCharacterInClass,RegExpRedundantEscape
             return re.sub(
                 r'(ip.(?:src|dst).*?)(["\"]?[\d\.]+["\"]?)',
                 lambda m: inet_filter(m.group()),

@@ -15,31 +15,28 @@ from dpkt import http
 class HTTPRequest(http.Request):
     """HTTP request class"""
 
-    def __init__(self, request_dict=None):
+    def __init__(self, request_dict=None, *args, **kwargs):
         """Constructor"""
 
+        super().__init__(*args, **kwargs)
         self.__dict = request_dict
         self.version = ''
         self.uri = ''
         self.method = ''
         self.headers = {}
         self.origin_headers = {}
-        self.body = b''
+        self.body: bytes = b''
         self.timestamp = ''
         self.src = ''
         self.sport = ''
         self.dst = ''
         self.dport = ''
-        self.origin = b''
+        self.origin: str = ''
         if request_dict:
             self.build(request_dict)
 
     def to_dict(self):
         return self.__dict
-
-    @property
-    def origin_request(self):
-        return self.origin.partition("\r\n\r\n")[0]
 
     def build(self, request_dict):
         """Convert HTTP request as dict to dpkt.http.Request object
