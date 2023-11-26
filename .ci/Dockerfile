@@ -5,6 +5,7 @@ RUN pip install -r /app/requirements.txt && rm -rf /root/.cache/pip
 ENV TCPDUMP_DURATION=60 \
 #    FILTER_EXPR="~c 200 ~ts json" \
 #    MONGO_COLLECTION=record \
+    KEEP_TIME=720 \
     UPSTREAM_PORT=81 \
     UPSTREAM_HOST=127.0.0.1 \
     TZ=Asia/Shanghai
