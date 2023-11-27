@@ -18,9 +18,12 @@ import re
 import time
 import traceback
 from datetime import datetime
+from hashlib import md5
 from typing import List, Optional
+from urllib.parse import unquote_plus, parse_qs, parse_qsl
 
 import pymongo
+from elasticsearch import Elasticsearch, helpers
 from redis.client import Redis
 
 from HTTPRequest import HTTPRequest
@@ -192,6 +195,24 @@ class Filter_tq(RequestFilter):
         return False
 
 
+def _es():
+    if uri := os.environ.get("ES_URI"):
+        service, auth, username, password, host, port_str, port, name, query = re.compile(
+            r"(https?)://(([^:]+):([^@]+)?@)?([^:]+)(:(\d+))?/([^?]*)(\?.*)?"
+        ).fullmatch(uri).groups()
+        db = Elasticsearch(
+            hosts=f"{service}://{host}{port_str}/{name}{query or ''}",
+            http_auth=(username, password),
+            timeout=5000
+        )
+    else:
+        host = os.environ.get("ES_HOST", "127.0.0.1")
+        port = os.environ.get("ES_PORT", "9200")
+        db = Elasticsearch(hosts=f"http://{host}:{port}", timeout=5000)
+    db.ping()
+    return db
+
+
 def _mongo(cate):
     if uri := os.environ.get("MONGO_URI"):
         service, auth, username, password, host, _, port, name, query = re.compile(
@@ -226,10 +247,22 @@ def _mongo(cate):
 
 
 mongo = None
+es_bulk = None
+output = os.environ.get("JSON_OUTPUT")
 if mongo_collection := os.environ.get("MONGO_COLLECTION"):
     mongo = _mongo(mongo_collection)
+if es_index := os.environ.get("ES_INDEX"):
+    es = _es()
 
 
+    def bulk(data: List[dict]):
+        helpers.bulk(es, actions=data, index=es_index)
+
+
+    es_bulk = bulk
+
+
+# noinspection PyShadowingNames
 def db_redis(index=0) -> Redis:
     import redis
     host = os.environ.get("REDIS_HOST", "127.0.0.1")
@@ -300,7 +333,7 @@ def main():
                         continue
                     record = {
                         "timestamp": int(packet.timestamp * 1000),
-                        "url": f"{packet.request.headers.get('host')}/{packet.request.uri}",
+                        "url": f"{packet.request.headers.get('host')}{packet.request.uri}",
                         "size": len(packet.origin) + len(packet.body) +
                                 len(packet.request.origin) + len(packet.request.body),
                         "response": {
@@ -324,13 +357,53 @@ def main():
                         "filter-expr": FILTER_EXPR,
                         "from": FROM,
                     })
+                    if packet.request.body:
+                        body = packet.request.body.strip()
+                        if body.startswith(b"{") and body.endswith(b"}"):
+                            record["request"]["json"] = json.loads(body.decode("utf8"))
+                        elif body.startswith(b"[") and body.endswith(b"]"):
+                            record["request"]["json"] = json.loads(body.decode("utf8"))
+                        elif "application/x-www-form-urlencoded" == packet.request.headers["content-type"]:
+                            record["request"]["form"] = dict(parse_qsl(body.decode("utf8"), keep_blank_values=True))
+                    if packet.body:
+                        body = packet.body.strip()
+                        if body.startswith(b"{") and body.endswith(b"}"):
+                            record["response"]["json"] = json.loads(body.decode("utf8"))
+                        elif body.startswith(b"[") and body.endswith(b"]"):
+                            record["response"]["json"] = json.loads(body.decode("utf8"))
                     buffer.append(record)
                 print(f"parser [file={file}] [match={len(buffer)}]")
                 if parser.last_stream:
                     print(f"parser [file={file}] not complete [stream_len={len(parser.last_stream)}]")
-                if buffer and mongo:
-                    ret = mongo.insert_many(buffer)
-                    print(f"parser [file={file}] [submit={len(ret.inserted_ids)}]")
+                if buffer:
+                    if output:
+                        def dumps(x):
+                            if isinstance(x, bytes):
+                                try:
+                                    return x.decode("utf8")
+                                except:
+                                    return md5(x).hexdigest()
+                            elif isinstance(x, datetime):
+                                return x.isoformat()
+                            return x
+
+                        with open(f"{output}/{each}.json", mode="w") as fout:
+                            fout.write(
+                                "\n".join(map(lambda x: json.dumps(x, ensure_ascii=False, default=dumps), buffer))
+                            )
+                    if es:
+                        es_bulk(list(map(lambda x: {
+                            "filter-expr": x["filter-expr"],
+                            "timestamp": x["timestamp"],
+                            "datetime": x["datetime"],
+                            "from": x["from"],
+                        }, buffer)))
+                        print(f"parser [file={file}] es [submit={len(buffer)}]")
+                    if mongo:
+                        ret = mongo.insert_many(buffer)
+                        print(f"parser [file={file}] mongo [submit={len(ret.inserted_ids)}]")
+
+
             except Exception:
                 traceback.print_exc()
             finally:
