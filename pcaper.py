@@ -202,8 +202,8 @@ def _es():
         ).fullmatch(uri).groups()
         db = Elasticsearch(
             hosts=f"{service}://{host}{port_str}/{name}{query or ''}",
-            http_auth=(username, password),
-            timeout=5000
+            basic_auth=(username, password),
+            request_timeout=5000
         )
     else:
         host = os.environ.get("ES_HOST", "127.0.0.1")
