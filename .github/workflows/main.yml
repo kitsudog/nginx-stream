@@ -49,3 +49,12 @@ jobs:
           tags: |
             kitsudo/${{ env.REPO_NAME }}:latest
             kitsudo/${{ env.REPO_NAME }}:${{ github.ref_name }}
+
+      - name: Docker Hub Description
+        uses: peter-evans/dockerhub-description@v3
+        with:
+          username: kitsudo
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+          repository: kitsudo/${{ env.REPO_NAME }}
+          readme-filepath: ./README.md
+          short-description: ${{ github.event.repository.description }}
