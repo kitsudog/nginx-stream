@@ -99,8 +99,13 @@ def listen_config_gen(i: int, config: str, host: str, port: int, listen_port=80,
         kwargs["host"] = "127.0.0.1"
         kwargs["port"] = 8000
         kwargs["proxy_host"] = host
+        kwargs["https"] = False
         kwargs["ex"] = False
-        return listen_config_gen(**kwargs) + core
+        return f"""\
+{listen_config_gen(**kwargs)}\
+# For Ex
+{core}\
+"""
 
 
 def proxy_config_gen(host="", proto="https"):
