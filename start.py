@@ -27,9 +27,7 @@ def format_content(template: str, data: dict):
     return "\n".join(filter(lambda x: not x.strip().startswith("##"), lines))
 
 
-def upstream_config_gen(i: int, config: str, host: str, port: int, listen_port=80, listen_host="_", server_dns="",
-                        listen_path="/", header="FROM", header_value="nginx-stream", proxy_host="$proxy_host",
-                        https=False, url: str = "", ex: bool = False):
+def upstream_config_gen(i: int, config: str, host: str, port: int, **kwargs):
     return f"""\
 upstream LISTEN_{i} {{
   # for {config}
@@ -38,9 +36,10 @@ upstream LISTEN_{i} {{
 """
 
 
-def listen_location_config_gen(i: int, config: str, host: str, port: int, listen_port=80, listen_host="_",
-                               server_dns="", listen_path="/", header="FROM", header_value="nginx-stream",
-                               proxy_host="$proxy_host", https=False, url: str = "", ex: bool = False):
+def listen_location_config_gen(host: str, port: int, listen_host="_",
+                               listen_path="/", header="FROM", header_value="nginx-stream",
+                               proxy_host="$proxy_host", https=False, url: str = "",
+                               cross_domain: str = "", **kwargs):
     return f"""\
 location {listen_path} {{
   add_header {header} {header_value};
@@ -51,14 +50,19 @@ location {listen_path} {{
   proxy_ssl_server_name on;
   proxy_set_header Upgrade $http_upgrade;
   proxy_set_header Connection $proxy_connection;
-}}
+""" + (f"""
+  # active cross_domain start
+  add_header 'Access-Control-Allow-Origin'      '{cross_domain}';
+  add_header 'Access-Control-Allow-Methods'     'GET, POST, OPTIONS';
+  add_header 'Access-Control-Allow-Headers'     'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range';
+  add_header 'Access-Control-Expose-Headers'    'Content-Length,Content-Range';
+  # active cross_domain over
+""" if cross_domain else "") + """
+}
 """
 
 
-def listen_config_gen0(i: int, config: str, host: str, port: int, listen_port=80, listen_host="_", server_dns="",
-                       listen_path="/", header="FROM", header_value="nginx-stream", proxy_host="$proxy_host",
-                       https=False, url: str = "", ex: bool = False):
-    kwargs = locals()
+def listen_config_gen0(listen_port=80, listen_host="_", server_dns="", **kwargs):
     return f"""\
 server {{
   listen {listen_port};
@@ -70,17 +74,16 @@ server {{
 
 def listen_config_gen1(i: int, config: str, host: str, port: int, listen_port=80, listen_host="_", server_dns="",
                        listen_path="/", header="FROM", header_value="nginx-stream", proxy_host="$proxy_host",
-                       https=False, url: str = "", ex: bool = False):
+                       https=False, url: str = "", ex: bool = False, **kwargs):
     kwargs = locals()
     return f"""\
 }}
 """
 
 
-def listen_config_gen(i: int, config: str, host: str, port: int, listen_port=80, listen_host="_", server_dns="",
-                      listen_path="/", header="FROM", header_value="nginx-stream", proxy_host="$proxy_host",
-                      https=False, url: str = "", ex: bool = False):
-    kwargs = locals()
+def listen_config_gen(host: str, ex: bool = False, **kwargs):
+    kwargs["host"] = host
+    kwargs["ex"] = ex
     if ex:
         kwargs["listen_port"] = 81
     core = format_content("""\
