@@ -232,16 +232,28 @@ http {{
     listen 80;
     
     set $dest_host $http_host;
+    set $dest_proto "https";
     
     if ($cookie_dest ~ "^https?://([^/]*)/$") {{
         set $dest_host $1;
         set $full_url $cookie_dest$request_uri;
     }}
     
+    if ($remote_user ~ "^https-([^/]*)$") {{
+        set $dest_host $1;
+        set $full_url "https://${{dest_host}}${{request_uri}}";
+    }}
+    
+    if ($remote_user ~ "^http-([^/]*)$") {{
+        set $dest_host $1;
+        set $full_url "http://${{dest_host}}${{request_uri}}";
+    }}
+    
     if ($request_uri ~ "^/([^/]*)/http://([^/]*)/(.*)$") {{
         set $dest_ip $1;
         set $dest_host $2;
         set $url $3;
+        set $dest_proto "http";
         set $full_url "http://${{dest_ip}}/${{url}}";
     }}
     
@@ -249,22 +261,33 @@ http {{
         set $dest_ip $1;
         set $dest_host $2;
         set $url $3;
+        set $dest_proto "https";
         set $full_url "https://${{dest_ip}}/${{url}}";
     }}
     
     if ($request_uri ~ "^/https://([^/]*)/(.*)$") {{
         set $dest_host $1;
         set $url $2;
+        set $dest_proto "https";
         set $full_url "https://${{dest_host}}/${{url}}";
     }}
     
     if ($request_uri ~ "^/http://([^/]*)/(.*)$") {{
         set $dest_host $1;
         set $url $2;
+        set $dest_proto "http";
         set $full_url "http://${{dest_host}}/${{url}}";
     }}
     
     location / {{
+    
+        if ($request_uri ~ "^/https?://([^/]*)/$") {{
+            add_header Set-Cookie "dest_host=$dest_host; path=/;";
+            add_header Set-Cookie "dest_ip=$dest_ip; path=/;";
+            add_header Set-Cookie "dest=${{dest_proto}}://${{dest_host}}/; path=/;";
+            return 302 " /";
+        }}
+        
         proxy_ssl_server_name on;
         proxy_pass "${{full_url}}";
         add_header proxy-by nginx-stream;
