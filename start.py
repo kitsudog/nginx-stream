@@ -235,7 +235,7 @@ http {{
     
     if ($cookie_dest ~ "^https?://([^/]*)/$") {{
         set $dest_host $1;
-        set $full_url $cookie_dest;
+        set $full_url $cookie_dest$request_uri;
     }}
     
     if ($request_uri ~ "^/([^/]*)/http://([^/]*)/(.*)$") {{
