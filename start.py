@@ -135,7 +135,8 @@ server {{
 
 # noinspection HttpUrlsUsage
 def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, listen_port=80, dns="8.8.8.8",
-                     config_file="/etc/nginx/nginx.conf", client_size="10m"):
+                     config_file="/etc/nginx/nginx.conf", client_size="10m", external_host="$http_host",
+                     external_proto="http"):
     upsteam_config = map(
         lambda x: upstream_config_gen(**x), listen_config_list)
     proxy_config = []
@@ -230,6 +231,7 @@ http {{
     server_name _;
     location / {{
       proxy_pass http://127.0.0.1:81;
+      proxy_redirect http://internal {external_proto}://{external_host};
     }}
   }}
 
@@ -308,6 +310,7 @@ http {{
         }}
         
         proxy_set_header Host "$dest_host";
+        proxy_redirect $dest_proto://$dest_host http://internal/$dest_proto://$dest_host;
     }}
     
     # PROXY START
