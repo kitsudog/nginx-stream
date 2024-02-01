@@ -175,7 +175,7 @@ http {{
   default_type  application/octet-stream;
   log_format  main  '$remote_addr $http_host $remote_user [$time_local] "$request" '
                     '$status $body_bytes_sent "$http_referer" '
-                    '"$http_user_agent" "$http_x_forwarded_for"' [Proxy-pass=$upstream_addr @ $dest_host];
+                    '"$http_user_agent" "$http_x_forwarded_for" ' [Proxy-pass=$upstream_addr @ $dest_host] $full_url;
 
   access_log  /var/log/nginx/access.log  main;
   sendfile        on;
@@ -233,50 +233,41 @@ http {{
     
     set $dest_host $http_host;
     set $dest_proto "https";
+    set $full_url "#";
     
-    if ($cookie_dest ~ "^https?://([^/]*)/$") {{
-        set $dest_host $1;
-        set $full_url $cookie_dest$request_uri;
-    }}
-    
-    if ($remote_user ~ "^https-([^/]*)$") {{
-        set $dest_host $1;
-        set $full_url "https://${{dest_host}}${{request_uri}}";
-    }}
-    
-    if ($remote_user ~ "^http-([^/]*)$") {{
-        set $dest_host $1;
-        set $full_url "http://${{dest_host}}${{request_uri}}";
-    }}
-    
-    if ($request_uri ~ "^/([^/]*)/http://([^/]*)/(.*)$") {{
-        set $dest_ip $1;
+    if ($cookie_dest ~ "^(https?)://([^/]*)/$") {{
+        set $dest_proto $1;
         set $dest_host $2;
-        set $url $3;
-        set $dest_proto "http";
-        set $full_url "http://${{dest_ip}}/${{url}}";
+        set $full_url $dest_proto://$dest_host$request_uri;
     }}
     
-    if ($request_uri ~ "^/([^/]*)/https://([^/]*)/(.*)$") {{
+    if ($cookie_dest ~ "^/([^/]+)/(https?)://([^/]*)/$") {{
         set $dest_ip $1;
+        set $dest_proto $2;
+        set $dest_host $3;
+        set $full_url $dest_proto://$dest_ip$request_uri;
+    }}
+    
+    if ($remote_user ~ "^(https?)-([^/]*)$") {{
+        set $dest_proto $1;
+        set $dest_host $2;
+        set $full_url "${{dest_proto}}://${{dest_host}}${{request_uri}}";
+    }}
+    
+    if ($request_uri ~ "^/([^/]+)/(https?)://([^/]*)/(.*)$") {{
+        set $dest_ip $1;
+        set $dest_proto $2;
+        set $dest_host $3;
+        set $url $4;
+        set $full_url "${{dest_proto}}://${{dest_ip}}/${{url}}";
+    }}
+    
+    if ($request_uri ~ "^/(https?)://([^/]*)/(.*)$") {{
+        set $dest_proto $1;
         set $dest_host $2;
         set $url $3;
         set $dest_proto "https";
-        set $full_url "https://${{dest_ip}}/${{url}}";
-    }}
-    
-    if ($request_uri ~ "^/https://([^/]*)/(.*)$") {{
-        set $dest_host $1;
-        set $url $2;
-        set $dest_proto "https";
-        set $full_url "https://${{dest_host}}/${{url}}";
-    }}
-    
-    if ($request_uri ~ "^/http://([^/]*)/(.*)$") {{
-        set $dest_host $1;
-        set $url $2;
-        set $dest_proto "http";
-        set $full_url "http://${{dest_host}}/${{url}}";
+        set $full_url "${{dest_proto}}://${{dest_host}}/${{url}}";
     }}
     
     location / {{
@@ -285,6 +276,13 @@ http {{
             add_header Set-Cookie "dest_host=$dest_host; path=/;";
             add_header Set-Cookie "dest_ip=$dest_ip; path=/;";
             add_header Set-Cookie "dest=${{dest_proto}}://${{dest_host}}/; path=/;";
+            return 302 " /";
+        }}
+        
+        if ($request_uri ~ "^/([^/]+)/https?://([^/]*)/$") {{
+            add_header Set-Cookie "dest_host=$dest_host; path=/;";
+            add_header Set-Cookie "dest_ip=$dest_ip; path=/;";
+            add_header Set-Cookie "dest=/${{dest_ip}}/${{dest_proto}}://${{dest_host}}/; path=/;";
             return 302 " /";
         }}
         
