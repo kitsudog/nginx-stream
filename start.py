@@ -68,7 +68,7 @@ server {{
   listen {listen_port};
   server_name {listen_host};
   ssl_verify_client off;
-  {("resolver %s;" % server_dns) if server_dns else ""}
+  {("resolver %s valid=60s;" % server_dns) if server_dns else ""}
 """
 
 
@@ -228,8 +228,15 @@ http {{
 
   server {{
     server_name _;
+    location / {{
+      proxy_pass http://127.0.0.1:81;
+    }}
+  }}
+
+  server {{
+    server_name _;
     server_tokens off;
-    listen 80;
+    listen 81;
     
     set $dest_host $http_host;
     set $dest_proto "https";
@@ -332,6 +339,8 @@ stream {{
         "listen": "\n".join(listen_config),
         "stream": "\n".join(stream_config),
     })
+    if os.environ.get("RECORD_PROXY") == "TRUE":
+        content.replace('proxy_pass "${full_url}";', 'proxy_pass "http://localhost:81/${full_url}";')
     with open(config_file, mode="w") as fout:
         fout.write(content)
 

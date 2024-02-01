@@ -65,6 +65,7 @@ import re
 
 s = Session()
 adapter = HTTPAdapter(max_retries=DEFAULT_RETRIES)
+# noinspection HttpUrlsUsage
 s.mount('http://', adapter)
 s.mount('https://', adapter)
 s.proxies = {}

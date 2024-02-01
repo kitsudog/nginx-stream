@@ -20,7 +20,7 @@ import traceback
 from datetime import datetime
 from hashlib import md5
 from typing import List, Optional
-from urllib.parse import unquote_plus, parse_qs, parse_qsl
+from urllib.parse import parse_qsl
 
 import pymongo
 from elasticsearch import Elasticsearch, helpers
@@ -124,13 +124,16 @@ class Filter_u(RequestFilter):
 
 
 # noinspection PyPep8Naming
-class Filter_d(RequestFilter):
+class Filter_d(ResponseFilter):
     """
     Domain
     """
 
-    def match_request(self, req: HTTPRequest):
+    def match_response(self, req: HTTPRequest, rsp: HTTPResponse):
         if self.regex.search(req.headers.get("host")):
+            return True
+        if self.regex.search(rsp.headers.get("proxy-host")):
+            # 针对proxy的
             return True
         return False
 
