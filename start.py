@@ -122,6 +122,18 @@ location /{host}/ {{
 """
 
 
+def redirect_config_gen(host: str, url: str, listen_port: int):
+    return f"""\
+server {{
+  listen {listen_port};
+  server_name {host};
+  location / {{
+    return 302 "{url}";
+  }}
+}}
+"""
+
+
 def stream_config_gen(host: str, port: str, listen_port: int, connect_timeout=3, timeout=10, udp=False):
     return f"""\
 server {{
@@ -134,11 +146,10 @@ server {{
 
 
 # noinspection HttpUrlsUsage
-def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, listen_port=80, dns="8.8.8.8",
-                     config_file="/etc/nginx/nginx.conf", client_size="10m", external_host="$http_host",
+def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, redirect_config_list, listen_port=80,
+                     dns="8.8.8.8", config_file="/etc/nginx/nginx.conf", client_size="10m", external_host="$http_host",
                      external_proto="http"):
-    upsteam_config = map(
-        lambda x: upstream_config_gen(**x), listen_config_list)
+    upsteam_config = map(lambda x: upstream_config_gen(**x), listen_config_list)
     proxy_config = []
     for each in proxy_config_list:
         proxy_config.append(proxy_config_gen(**each))
@@ -159,6 +170,7 @@ def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, 
             config += listen_config_gen1(**each[0])
             listen_config.append(config)
     stream_config = map(lambda x: stream_config_gen(**x), stream_config_list)
+    redirect_config = map(lambda x: redirect_config_gen(**x), redirect_config_list)
 
     content = format_content(f"""\
 user  nginx;
@@ -323,6 +335,9 @@ http {{
   # LISTEN START
   %(listen)s
   # LISTEN END
+  # REDIRECT START
+  %(redirect)s
+  # REDIRECT END
 }}
 
 stream {{
@@ -341,6 +356,7 @@ stream {{
         "proxy": "\n".join(proxy_config),
         "listen": "\n".join(listen_config),
         "stream": "\n".join(stream_config),
+        "redirect": "\n".join(redirect_config),
     })
     if os.environ.get("RECORD_PROXY") == "TRUE":
         content.replace('proxy_pass "${full_url}";', 'proxy_pass "http://localhost:81/${full_url}";')
@@ -365,7 +381,19 @@ def main():
     listen_config = []
     bind_config = []
     forward_config = []
+    redirect_config = []
     proxy_config = []
+    for k, each in list(filter(lambda kv: re.compile("REDIRECT_\d+").match(kv[0]), os.environ.items())) + list(
+            map(lambda x: ("REDIRECT", x), os.environ.get("REDIRECT", "").split(";"))):
+        if not each:
+            continue
+        regex = re.compile(
+            '(?P<host>.+)(:(?P<listen_port>\d+))?=(?P<url>.+)'
+        )
+        config = next(regex.finditer(each)).groupdict()
+        config['listen_port'] = int(config['listen_port'] or '80')
+        redirect_config.append(config)
+
     for k, each in list(filter(lambda kv: re.compile("BIND_\d+").match(kv[0]), os.environ.items())) + list(
             map(lambda x: ("BIND", x), os.environ.get("BIND", "").split(";"))):
         if not each:
@@ -449,6 +477,7 @@ def main():
 
     gen_nginx_config(
         listen_config_list=listen_config + forward_config,
+        redirect_config_list=redirect_config,
         stream_config_list=bind_config,
         proxy_config_list=proxy_config,
         **env_params(gen_nginx_config)
