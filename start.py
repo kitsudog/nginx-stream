@@ -154,7 +154,7 @@ server {{
   server_name {host};
   location / {{
     add_header Content-Type text/html;
-    return 200 '<html><head><body><script type="text/javascript">window.location.href="{url2}" + location.pathname + location.search + "#" + location.hash`;</script></body></html>';
+    return 200 '<html><head><body><script type="text/javascript">window.location.href="{url2}" + location.pathname + location.search + location.hash;</script></body></html>';
   }}
 }}
 """
