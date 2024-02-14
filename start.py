@@ -122,8 +122,23 @@ location /{host}/ {{
 """
 
 
-def redirect_config_gen(host: str, url: str, listen_port: int):
-    return f"""\
+def redirect_config_gen(host: str, url: str, listen_port: int,mode="normal"):
+    if url.endswith("/"):
+        url2,_,_=url.rpartition("/")
+    else:
+        url2=url
+    if mode=="normal":
+        return f"""\
+server {{
+  listen {listen_port};
+  server_name {host};
+  location / {{
+    return 302 "{url2}$request_uri";
+  }}
+}}
+"""
+    elif mode=="no_uri":
+        return f"""\
 server {{
   listen {listen_port};
   server_name {host};
@@ -132,7 +147,19 @@ server {{
   }}
 }}
 """
-
+    elif mode=="hash":
+        return f"""\
+server {{
+  listen {listen_port};
+  server_name {host};
+  location / {{
+    add_header Content-Type text/html;
+    return 200 '<html><head><body><script type="text/javascript">window.location.href="{url2}" + location.pathname + location.search + "#" + location.hash`;</script></body></html>';
+  }}
+}}
+"""
+    else:
+        raise Exception(f"not support mode [{mode}]")
 
 def stream_config_gen(host: str, port: str, listen_port: int, connect_timeout=3, timeout=10, udp=False):
     return f"""\
@@ -383,7 +410,7 @@ def main():
     forward_config = []
     redirect_config = []
     proxy_config = []
-    for k, each in list(filter(lambda kv: re.compile("REDIRECT_\d+").match(kv[0]), os.environ.items())) + list(
+    for k, each in list(filter(lambda kv: re.compile("REDIRECT_\d+").fullmatch(kv[0]), os.environ.items())) + list(
             map(lambda x: ("REDIRECT", x), os.environ.get("REDIRECT", "").split(";"))):
         if not each:
             continue
@@ -392,6 +419,11 @@ def main():
         )
         config = next(regex.finditer(each)).groupdict()
         config['listen_port'] = int(config['listen_port'] or '80')
+        params = filter(lambda kv: kv[0].startswith(f"{k}_"), os.environ.items())
+        params = dict(
+            map(lambda kv: (kv[0][len(k) + 1:].lower(), kv[1]), params)
+        )        
+        config.update(params)
         redirect_config.append(config)
 
     for k, each in list(filter(lambda kv: re.compile("BIND_\d+").match(kv[0]), os.environ.items())) + list(
