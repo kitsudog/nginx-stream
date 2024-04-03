@@ -62,9 +62,15 @@ location {listen_path} {{
 """
 
 
-def listen_config_gen0(listen_port=80, listen_host="_", server_dns="", **kwargs):
+def listen_config_gen0(listen_port=80, listen_host="_", server_dns="", tls_listen_port=443, tls="nginx", **kwargs):
     return f"""\
 server {{
+  listen {tls_listen_port} ssl;
+  ssl_session_timeout 5m;
+  ssl_session_cache shared:SSL:50m;
+  ssl_session_tickets off;
+  ssl_certificate /etc/nginx/certs/{tls}.crt;
+  ssl_certificate_key /etc/nginx/certs/{tls}.key;
   listen {listen_port};
   server_name {listen_host};
   ssl_verify_client off;
@@ -122,12 +128,12 @@ location /{host}/ {{
 """
 
 
-def redirect_config_gen(host: str, url: str, listen_port: int,mode="normal"):
+def redirect_config_gen(host: str, url: str, listen_port: int, mode="normal"):
     if url.endswith("/"):
-        url2,_,_=url.rpartition("/")
+        url2, _, _ = url.rpartition("/")
     else:
-        url2=url
-    if mode=="normal":
+        url2 = url
+    if mode == "normal":
         return f"""\
 server {{
   listen {listen_port};
@@ -137,7 +143,7 @@ server {{
   }}
 }}
 """
-    elif mode=="no_uri":
+    elif mode == "no_uri":
         return f"""\
 server {{
   listen {listen_port};
@@ -147,7 +153,7 @@ server {{
   }}
 }}
 """
-    elif mode=="hash":
+    elif mode == "hash":
         return f"""\
 server {{
   listen {listen_port};
@@ -160,6 +166,7 @@ server {{
 """
     else:
         raise Exception(f"not support mode [{mode}]")
+
 
 def stream_config_gen(host: str, port: str, listen_port: int, connect_timeout=3, timeout=10, udp=False):
     return f"""\
@@ -183,6 +190,13 @@ def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, 
     tmp = {}
     for each in listen_config_list:
         listen_host = each['listen_host']
+        _, _, listen_host2 = listen_host.partition(".")
+        # noinspection PyPep8Naming
+        CERT_DIR = "/etc/nginx/certs"
+        if os.path.exists(f"{CERT_DIR}/{listen_host}.key") and os.path.exists(f"{CERT_DIR}/{listen_host}.crt"):
+            each["tls"] = listen_host
+        elif os.path.exists(f"{CERT_DIR}/{listen_host2}.key") and os.path.exists(f"{CERT_DIR}/{listen_host2}.crt"):
+            each["tls"] = listen_host2
         if listen_host not in tmp:
             tmp[listen_host] = []
         tmp[listen_host].append(each)
@@ -422,7 +436,7 @@ def main():
         params = filter(lambda kv: kv[0].startswith(f"{k}_"), os.environ.items())
         params = dict(
             map(lambda kv: (kv[0][len(k) + 1:].lower(), kv[1]), params)
-        )        
+        )
         config.update(params)
         redirect_config.append(config)
 
