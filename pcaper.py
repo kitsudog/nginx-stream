@@ -394,7 +394,7 @@ def main():
                             fout.write(
                                 "\n".join(map(lambda x: json.dumps(x, ensure_ascii=False, default=dumps), buffer))
                             )
-                    if es:
+                    if es_bulk:
                         es_bulk(list(map(lambda x: {
                             "filter-expr": x["filter-expr"],
                             "timestamp": x["timestamp"],

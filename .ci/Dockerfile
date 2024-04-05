@@ -10,6 +10,7 @@ ENV TCPDUMP_DURATION=60 \
     UPSTREAM_HOST=127.0.0.1 \
     TZ=Asia/Shanghai
 COPY *.sh *.py /app/
+COPY templates/ /app/templates/
 COPY certs/ /etc/nginx/certs/
 WORKDIR /app
 ENTRYPOINT ["/app/start.sh"]

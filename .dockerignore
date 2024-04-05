@@ -1,6 +1,6 @@
 docker-compose.yaml
 /venv
-nginx.conf
+nginx.conf*
 .vscode/settings.json
 __pycache__
 /pcap
@@ -8,3 +8,4 @@ __pycache__
 .ci
 .git
 .vscode
+.env
