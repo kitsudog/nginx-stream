@@ -22,7 +22,10 @@ server {
 {% endif %}
   listen 80;
   ssl_verify_client off;
-
+{% if listen_config.client_size %}
+  client_max_body_size {{ listen_config.client_size }};
+  client_body_buffer_size 10m;
+{% endif %}
   location / {
     proxy_set_header Host ${http_host};
     set $dest_host "#internal-server#";
@@ -61,6 +64,10 @@ server {
   listen 81;
 {% endif %}
   ssl_verify_client off;
+{% if listen_config.client_size %}
+  client_max_body_size {{ listen_config.client_size }};
+  client_body_buffer_size 10m;
+{% endif %}
   {% if listen_config.server_dns %}
     resolver {{ listen_config.server_dns }} valid=60s;
   {% endif %}
