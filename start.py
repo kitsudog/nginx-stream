@@ -8,11 +8,16 @@ from jinja2 import Environment, FileSystemLoader
 
 jinja2_env = Environment(loader=FileSystemLoader('templates'))
 
-if os.path.exists(".env"):
-    with open(".env") as fin:
-        for each in fin.read().splitlines(keepends=False):
-            k, _, v = each.strip().partition("=")
-            os.environ[k] = v
+
+def init_env():
+    if os.path.exists(".env"):
+        with open(".env") as fin:
+            for each in fin.read().splitlines(keepends=False):
+                k, _, v = each.strip().partition("=")
+                os.environ[k] = v
+
+
+init_env()
 
 
 # noinspection PyDefaultArgument
@@ -23,40 +28,6 @@ def render(template, *, default: Dict = {}, **kwargs):
             continue
         data[key] = value
     return jinja2_env.get_template(template).render(data)
-
-
-def format_content(template: str, data: dict):
-    lines = template.splitlines()
-    for k, v in data.items():
-        tmp = []
-        key = f"%({k})s"
-        for line in lines:
-            if line.find(key) >= 0:
-                s, _, e = line.partition(key)
-                if len(v.splitlines()) <= 1:
-                    tmp.append(f"{s}{v}{e}")
-                else:
-                    white = " " * line.find(key)
-                    tmp.append(f"{s}{v.splitlines()[0]}")
-                    if len(v.splitlines()) > 2:
-                        tmp.extend(list(map(
-                            lambda x: f"{white}{x}",
-                            v.splitlines()[1:-1]
-                        )))
-                    tmp.append(f"{white}{v.splitlines()[-1]}{e}")
-            else:
-                tmp.append(line)
-        lines = tmp
-    return "\n".join(filter(lambda x: not x.strip().startswith("##"), lines))
-
-
-def upstream_config_gen(i: int, config: str, host: str, port: int, **kwargs):
-    return f"""\
-upstream LISTEN_{i} {{
-  # for {config}
-  server {host}:{port};
-}}
-"""
 
 
 def listen_config_gen(host: str, ex: bool = False, **kwargs):
@@ -101,66 +72,11 @@ def listen_config_gen(host: str, ex: bool = False, **kwargs):
     return re.sub("\n\n+", "\n", core)
 
 
-def proxy_config_gen(host="", proto="https"):
-    return f"""\
-location /{host}/ {{
-  proxy_set_header Host {host};
-  proxy_ignore_client_abort on;
-  proxy_ssl_server_name on;
-  proxy_pass {proto}://{host}/;
-}}
-"""
-
-
-def redirect_config_gen(host: str, url: str, listen_port: int, mode="normal"):
-    if url.endswith("/"):
-        url2, _, _ = url.rpartition("/")
-    else:
-        url2 = url
-    if mode == "normal":
-        return f"""\
-server {{
-  listen {listen_port};
-  server_name {host};
-  location / {{
-    return 302 "{url2}$request_uri";
-  }}
-}}
-"""
-    elif mode == "no_uri":
-        return f"""\
-server {{
-  listen {listen_port};
-  server_name {host};
-  location / {{
-    return 302 "{url}";
-  }}
-}}
-"""
-    elif mode == "hash":
-        return f"""\
-server {{
-  listen {listen_port};
-  server_name {host};
-  location / {{
-    add_header Content-Type text/html;
-    return 200 '<html><head><body><script type="text/javascript">window.location.href="{url2}" + location.pathname + location.search + location.hash;</script></body></html>';
-  }}
-}}
-"""
-    else:
-        raise Exception(f"not support mode [{mode}]")
-
-
 # noinspection HttpUrlsUsage
 def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, redirect_config_list, listen_port=80,
                      dns="8.8.8.8", config_file="/etc/nginx/nginx.conf", client_size="10m", external_host="$http_host",
                      external_proto="http"):
     kwargs = locals()
-    upstream_config = map(lambda x: upstream_config_gen(**x), listen_config_list)
-    proxy_config = []
-    for each in proxy_config_list:
-        proxy_config.append(proxy_config_gen(**each))
     tmp = {}
     for each in listen_config_list:
         listen_host = each['listen_host']
@@ -184,16 +100,16 @@ def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, 
     for k, each in sorted(tmp.items(), key=lambda kv: kv[0]):
         assert len(each) == 1
         listen_config.append(listen_config_gen(**each[0]))
-    redirect_config = map(lambda x: redirect_config_gen(**x), redirect_config_list)
-
+    for each in redirect_config_list:
+        if each["url"].endswith("/"):
+            url2, _, _ = each["url"].rpartition("/")
+        else:
+            url2 = each["url"]
+        each["url2"] = url2
+        if "mode" not in each:
+            each["mode"] = "normal"
     content = render("nginx.jinja", default={
-        "upstream": "\n".join(upstream_config),
-        "proxy": "\n".join(proxy_config),
         "listen": "\n".join(listen_config),
-        "redirect": "\n".join(redirect_config),
-        "stream_config": jinja2_env.get_template("stream.jinja").render({
-            "stream_config_list": stream_config_list,
-        }),
     }, **kwargs)
     if os.environ.get("RECORD_PROXY") == "TRUE":
         content.replace('proxy_pass "${full_url}";', 'proxy_pass "http://localhost:81/${full_url}";')
@@ -293,7 +209,7 @@ def main():
         params["ex"] = params.get("ex", "false").lower() == "true"
         listen_config.append(get_listen_config(each, **params))
 
-    for k, each in list(filter(lambda kv: re.compile("FORWARD_\d+").match(kv[0]), os.environ.items())) + list(
+    for k, each in list(filter(lambda kv: re.compile(r"FORWARD_\d+").match(kv[0]), os.environ.items())) + list(
             map(lambda x: ("FORWARD", x), os.environ.get("FORWARD", "").split(";"))):
         if not each:
             continue

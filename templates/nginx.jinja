@@ -151,18 +151,77 @@ http {
     }
 
     # PROXY START
-    {{ proxy }}
+{%- for proxy_config in proxy_config_list %}
+    location /{{ proxy_config.host }}/ {
+      proxy_set_header Host {{ proxy_config.host }};
+      proxy_ignore_client_abort on;
+      proxy_ssl_server_name on;
+      proxy_pass {{ proxy_config.proto }}://{{ proxy_config.host }}/;
+    }
+{% endfor %}
     # PROXY END
+
   }
   # UPSTREAM START
-  {% filter indent(2) %}{{ upstream }}{% endfilter %}
+{%- for listen_config in listen_config_list %}
+  upstream LISTEN_{{ loop.index }} {
+    # for {{ listen_config.config }}
+    server {{ listen_config.host }}:{{ listen_config.port }};
+  }
+{% endfor %}
   # UPSTREAM END
   # LISTEN START
   {% filter indent(2) %}{{ listen }}{% endfilter %}
   # LISTEN END
   # REDIRECT START
-  {% filter indent(2) %}{{ redirect }}{% endfilter %}
+{%- for redirect_config in redirect_config_list %}
+{%- if redirect_config.mode == "normal" %}
+  server {
+    listen {{ redirect_config.listen_port }};
+    server_name {{ redirect_config.host }};
+    location / {
+      return 302 "{{ redirect_config.url2 }}$request_uri";
+    }
+  }
+{%- elif redirect_config.mode == "no_uri" %}
+  server {
+    listen {{ redirect_config.listen_port }};
+    server_name {{ redirect_config.host }};
+    location / {
+      return 302 "{{ redirect_config.url }}";
+    }
+  }
+{%- elif redirect_config.mode == "hash" %}
+  server {
+    listen {{ redirect_config.listen_port }};
+    server_name {{ redirect_config.host }};
+    location / {
+      add_header Content-Type text/html;
+      return 200 '<html lang="en"><head><title>redirect</title></head><body><script type="text/javascript">window.location.href="{{ redirect_config.url2 }}" + location.pathname + location.search + location.hash;</script></body></html>';
+    }
+  }
+{%- else %}
+  # no support {{ redirect_config.mode }}
+{%- endif %}
+{%- endfor %}
   # REDIRECT END
 }
 
-{{ stream_config }}
+stream {
+  log_format proxy  '$remote_addr [$time_local] '
+                    '$protocol $status $bytes_sent $bytes_received '
+                    '$session_time -> $upstream_addr '
+                    '$upstream_bytes_sent $upstream_bytes_received $upstream_connect_time';
+  access_log /dev/stdout proxy buffer=32k;
+  open_log_file_cache off;
+{%- for stream in stream_config_list %}
+  # STREAM START
+  server {
+    listen {{ stream.listen_port }}{{ ' udp' if stream.udp else '' }};
+    proxy_connect_timeout {{ stream.connect_timeout | default(3) }}s;
+    proxy_timeout {{ stream.timeout | default(10) }}s;
+    proxy_pass {{ stream.host }}:{{ stream.port }};
+  }
+  # STREAM END
+{% endfor -%}
+}
