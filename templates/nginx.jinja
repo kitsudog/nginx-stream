@@ -8,7 +8,7 @@ events {
     worker_connections  10240;
 }
 http {
-  resolver 8.8.8.8 valid=60s ipv6=off;
+  resolver {{ dns }} valid=60s ipv6=off;
   include       /etc/nginx/mime.types;
   default_type  application/octet-stream;
   log_format  main  '$remote_addr $http_host $remote_user [$time_local] "$request" '
@@ -57,7 +57,7 @@ http {
   proxy_set_header X-Forwarded-Port $proxy_x_forwarded_port;
   proxy_set_header Proxy "";
 
-  client_max_body_size      10m;
+  client_max_body_size      {{ client_size }};
   client_header_timeout     1m;
   client_body_timeout       1m;
   proxy_connect_timeout     60s;
@@ -68,7 +68,7 @@ http {
     server_name _;
     location / {
       proxy_pass http://127.0.0.1:81;
-      proxy_redirect http://internal http://$http_host;
+      proxy_redirect http://internal {{ external_proto }}://{{ external_host }};
     }
   }
 
@@ -151,128 +151,18 @@ http {
     }
 
     # PROXY START
-    
+    {{ proxy }}
     # PROXY END
   }
   # UPSTREAM START
-  upstream LISTEN_1 {
-    # for LISTEN_1=echo:httpbin.org/get?
-    server httpbin.org:80;
-  }
-
-  upstream LISTEN_2 {
-    # for LISTEN_2=https@www.test:cip.cc
-    server cip.cc:80;
-  }
-
-  upstream LISTEN_103 {
-    # for FORWARD_1=www.abc.com:www.baidu.com
-    server www.baidu.com:80;
-  }
-
+  {% filter indent(2) %}{{ upstream }}{% endfilter %}
   # UPSTREAM END
   # LISTEN START
-  
-  server {
-    listen 80;
-    server_name echo;
-    ssl_verify_client off;
-    
-    location / {
-      add_header FROM nginx-stream;
-      proxy_set_header X-FROM echo;
-      proxy_set_header Host $proxy_host;
-      proxy_pass http://httpbin.org:80/get?;
-      proxy_redirect default;
-      proxy_ssl_server_name on;
-      proxy_set_header Upgrade $http_upgrade;
-      proxy_set_header Connection $proxy_connection;
-      # active cross_domain start
-      add_header 'Access-Control-Allow-Origin'      '${http_origin}';
-      add_header 'Access-Control-Allow-Methods'     'GET, POST, OPTIONS';
-      add_header 'Access-Control-Allow-Headers'     'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range';
-      add_header 'Access-Control-Expose-Headers'    'Content-Length,Content-Range';
-      # active cross_domain over
-    }
-  }
-
-  server {
-    listen 80;
-    server_name www.abc.com;
-    ssl_verify_client off;
-    
-    location / {
-      add_header FROM nginx-stream;
-      proxy_set_header X-FROM www.abc.com;
-      proxy_set_header Host $http_host;
-      proxy_pass http://www.baidu.com:80/;
-      proxy_redirect default;
-      proxy_ssl_server_name on;
-      proxy_set_header Upgrade $http_upgrade;
-      proxy_set_header Connection $proxy_connection;
-    }
-  }
-
-  # EX GATEWAY
-  server {
-    # crt file [/etc/nginx/certs/nginx.crt] not found
-    listen 80;
-    server_name www.test;
-    ssl_verify_client off;
-    
-    location / {
-      add_header FROM nginx-stream;
-      proxy_set_header X-FROM www.test;
-      proxy_set_header Host cip.cc;
-      proxy_pass http://127.0.0.1:8000/;
-      proxy_redirect default;
-      proxy_ssl_server_name on;
-      proxy_set_header Upgrade $http_upgrade;
-      proxy_set_header Connection $proxy_connection;
-    }
-  }
-  server {
-    listen 81;
-    server_name www.test;
-    ssl_verify_client off;
-    
-    location / {
-      add_header FROM nginx-stream;
-      proxy_set_header X-FROM www.test;
-      proxy_set_header Host $proxy_host;
-      proxy_pass https://cip.cc:80/;
-      proxy_redirect default;
-      proxy_ssl_server_name on;
-      proxy_set_header Upgrade $http_upgrade;
-      proxy_set_header Connection $proxy_connection;
-    }
-  }
+  {% filter indent(2) %}{{ listen }}{% endfilter %}
   # LISTEN END
   # REDIRECT START
-  server {
-    listen 80;
-    server_name baidu.games;
-    location / {
-      return 302 "https://www.baidu.com$request_uri";
-    }
-  }
-
+  {% filter indent(2) %}{{ redirect }}{% endfilter %}
   # REDIRECT END
 }
 
-stream {
-  log_format proxy  '$remote_addr [$time_local] '
-                    '$protocol $status $bytes_sent $bytes_received '
-                    '$session_time -> $upstream_addr '
-                    '$upstream_bytes_sent $upstream_bytes_received $upstream_connect_time';
-  access_log /dev/stdout proxy buffer=32k;
-  open_log_file_cache off;
-  # STREAM START
-  server {
-    listen 1443;
-    proxy_connect_timeout 3s;
-    proxy_timeout 3600s;
-    proxy_pass 183.2.172.42:443;
-  }
-  # STREAM END
-}
+{{ stream_config }}

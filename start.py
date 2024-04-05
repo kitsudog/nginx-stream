@@ -156,7 +156,8 @@ server {{
 def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, redirect_config_list, listen_port=80,
                      dns="8.8.8.8", config_file="/etc/nginx/nginx.conf", client_size="10m", external_host="$http_host",
                      external_proto="http"):
-    upsteam_config = map(lambda x: upstream_config_gen(**x), listen_config_list)
+    kwargs = locals()
+    upstream_config = map(lambda x: upstream_config_gen(**x), listen_config_list)
     proxy_config = []
     for each in proxy_config_list:
         proxy_config.append(proxy_config_gen(**each))
@@ -185,184 +186,15 @@ def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, 
         listen_config.append(listen_config_gen(**each[0]))
     redirect_config = map(lambda x: redirect_config_gen(**x), redirect_config_list)
 
-    content = format_content(f"""\
-user  nginx;
-worker_processes  auto;
-
-error_log  /var/log/nginx/error.log notice;
-pid        /var/run/nginx.pid;
-
-events {{
-    worker_connections  10240;
-}}
-http {{
-  resolver {dns} valid=60s ipv6=off;
-  include       /etc/nginx/mime.types;
-  default_type  application/octet-stream;
-  log_format  main  '$remote_addr $http_host $remote_user [$time_local] "$request" '
-                    '$status $body_bytes_sent "$http_referer" '
-                    '"$http_user_agent" "$http_x_forwarded_for" ' [Proxy-pass=$upstream_addr @ $dest_host] $full_url;
-
-  access_log  /var/log/nginx/access.log  main;
-  sendfile        on;
-  #tcp_nopush     on;
-  charset 'utf-8';
-  keepalive_timeout  65;
-  # If we receive X-Forwarded-Proto, pass it through; otherwise, pass along the
-  # scheme used to connect to this server
-  map $http_x_forwarded_proto $proxy_x_forwarded_proto {{
-    default $http_x_forwarded_proto;
-    ''      $scheme;
-  }}
-  # If we receive X-Forwarded-Port, pass it through; otherwise, pass along the
-  # server port the client connected to
-  map $http_x_forwarded_port $proxy_x_forwarded_port {{
-    default $http_x_forwarded_port;
-    ''      $server_port;
-  }}
-  # If we receive Upgrade, set Connection to "upgrade"; otherwise, delete any
-  # Connection header that may have been passed to this server
-  map $http_upgrade $proxy_connection {{
-    default upgrade;
-    '' close;
-  }}
-  # Set appropriate X-Forwarded-Ssl header based on $proxy_x_forwarded_proto
-  map $proxy_x_forwarded_proto $proxy_x_forwarded_ssl {{
-    default off;
-    https on;
-  }}
-  gzip_types text/plain text/css application/javascript application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript;
-  # HTTP 1.1 support
-  proxy_http_version 1.1;
-  proxy_buffering off;
-  proxy_set_header Host $http_host;
-  proxy_set_header Upgrade $http_upgrade;
-  proxy_set_header Connection $proxy_connection;
-  proxy_set_header X-Real-IP $remote_addr;
-  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-  proxy_set_header X-Forwarded-Proto $proxy_x_forwarded_proto;
-  proxy_set_header X-Forwarded-Ssl $proxy_x_forwarded_ssl;
-  proxy_set_header X-Forwarded-Port $proxy_x_forwarded_port;
-  proxy_set_header Proxy "";
-
-  client_max_body_size      {client_size};
-  client_header_timeout     1m;
-  client_body_timeout       1m;
-  proxy_connect_timeout     60s;
-  proxy_read_timeout        1m;
-  proxy_send_timeout        1m;
-
-  server {{
-    server_name _;
-    location / {{
-      proxy_pass http://127.0.0.1:81;
-      proxy_redirect http://internal {external_proto}://{external_host};
-    }}
-  }}
-
-  server {{
-    server_name _;
-    server_tokens off;
-    listen 81;
-    
-    set $dest_host $http_host;
-    set $dest_proto "https";
-    set $full_url "#";
-    
-    if ($cookie_dest ~ "^(https?)://([^/]*)/$") {{
-        set $dest_proto $1;
-        set $dest_host $2;
-        set $full_url $dest_proto://$dest_host$request_uri;
-    }}
-    
-    if ($cookie_dest ~ "^/([^/]+)/(https?)://([^/]*)/$") {{
-        set $dest_ip $1;
-        set $dest_proto $2;
-        set $dest_host $3;
-        set $full_url $dest_proto://$dest_ip$request_uri;
-    }}
-    
-    if ($remote_user ~ "^(https?)-([^/]*)$") {{
-        set $dest_proto $1;
-        set $dest_host $2;
-        set $full_url "${{dest_proto}}://${{dest_host}}${{request_uri}}";
-    }}
-    
-    if ($request_uri ~ "^/([^/]+)/(https?)://([^/]*)/(.*)$") {{
-        set $dest_ip $1;
-        set $dest_proto $2;
-        set $dest_host $3;
-        set $url $4;
-        set $full_url "${{dest_proto}}://${{dest_ip}}/${{url}}";
-    }}
-    
-    if ($request_uri ~ "^/(https?)://([^/]*)/(.*)$") {{
-        set $dest_proto $1;
-        set $dest_host $2;
-        set $url $3;
-        set $dest_proto "https";
-        set $full_url "${{dest_proto}}://${{dest_host}}/${{url}}";
-    }}
-    
-    location / {{
-    
-        if ($request_uri ~ "^/https?://([^/]*)/$") {{
-            add_header Set-Cookie "dest_host=$dest_host; path=/;";
-            add_header Set-Cookie "dest_ip=$dest_ip; path=/;";
-            add_header Set-Cookie "dest=${{dest_proto}}://${{dest_host}}/; path=/;";
-            return 302 " /";
-        }}
-        
-        if ($request_uri ~ "^/([^/]+)/https?://([^/]*)/$") {{
-            add_header Set-Cookie "dest_host=$dest_host; path=/;";
-            add_header Set-Cookie "dest_ip=$dest_ip; path=/;";
-            add_header Set-Cookie "dest=/${{dest_ip}}/${{dest_proto}}://${{dest_host}}/; path=/;";
-            return 302 " /";
-        }}
-        
-        proxy_ssl_server_name on;
-        proxy_pass "${{full_url}}";
-        add_header proxy-by nginx-stream;
-        add_header proxy-host $dest_host;
-        add_header proxy-upstream $upstream_addr;
-
-        add_header 'Access-Control-Allow-Origin' '${{dest_host}}';
-        add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
-        add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range';
-        add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range';
-        if ($request_method = 'OPTIONS') {{
-            return 204;
-        }}
-        
-        proxy_set_header Host "$dest_host";
-        proxy_redirect $dest_proto://$dest_host http://internal/$dest_proto://$dest_host;
-    }}
-    
-    # PROXY START
-    %(proxy)s
-    # PROXY END
-  }}
-  # UPSTREAM START
-  %(upstream)s
-  # UPSTREAM END
-  # LISTEN START
-  %(listen)s
-  # LISTEN END
-  # REDIRECT START
-  %(redirect)s
-  # REDIRECT END
-}}
-
-%(stream_config)s
-""", {
-        "upstream": "\n".join(upsteam_config),
+    content = render("nginx.jinja", default={
+        "upstream": "\n".join(upstream_config),
         "proxy": "\n".join(proxy_config),
         "listen": "\n".join(listen_config),
         "redirect": "\n".join(redirect_config),
         "stream_config": jinja2_env.get_template("stream.jinja").render({
             "stream_config_list": stream_config_list,
         }),
-    })
+    }, **kwargs)
     if os.environ.get("RECORD_PROXY") == "TRUE":
         content.replace('proxy_pass "${full_url}";', 'proxy_pass "http://localhost:81/${full_url}";')
     with open(config_file, mode="w") as fout:
@@ -409,7 +241,7 @@ def main():
         if not each:
             continue
         regex = re.compile(
-            '((?P<udp>udp)@)?((?P<listen_port>\d+):)?(?P<host>[^:]+)(:(?P<port>\d+))?'
+            r'((?P<udp>udp)@)?((?P<listen_port>\d+):)?(?P<host>[^:]+)(:(?P<port>\d+))?'
         )
         print("check", each)
         config = next(regex.finditer(each)).groupdict()
@@ -420,11 +252,11 @@ def main():
         print(f"BIND[{each}]=>[{config}]")
         bind_config.append(config)
     regex_listen = re.compile(
-        '(?P<https>https@)?'
-        '(?P<listen_host>[^:/]+)'
-        '(?P<listen_path>/[^:]+)?'
-        ':(?P<host>[^:/]+)(:(?P<port>\d+))?(?P<url>/[^@]+)?'
-        '(@(?P<proxy_host>.+))?'
+        r'(?P<https>https@)?'
+        r'(?P<listen_host>[^:/]+)'
+        r'(?P<listen_path>/[^:]+)?'
+        r':(?P<host>[^:/]+)(:(?P<port>\d+))?(?P<url>/[^@]+)?'
+        r'(@(?P<proxy_host>.+))?'
     )
     i = 0
 
