@@ -180,7 +180,9 @@ http {
     listen {{ redirect_config.listen_port }};
     server_name {{ redirect_config.host }};
     location / {
-      return 302 "{{ redirect_config.url2 }}$request_uri";
+      set $full_url   "{{ redirect_config.url2 }}$request_uri";
+      set $dest_host  "#REDIRECT#";
+      return 302      "{{ redirect_config.url2 }}$request_uri";
     }
   }
 {%- elif redirect_config.mode == "no_uri" %}
@@ -188,7 +190,9 @@ http {
     listen {{ redirect_config.listen_port }};
     server_name {{ redirect_config.host }};
     location / {
-      return 302 "{{ redirect_config.url }}";
+      set $full_url   "{{ redirect_config.url }}";
+      set $dest_host  "#REDIRECT-DOMAIN#";
+      return 302      "{{ redirect_config.url }}";
     }
   }
 {%- elif redirect_config.mode == "hash" %}
@@ -196,6 +200,8 @@ http {
     listen {{ redirect_config.listen_port }};
     server_name {{ redirect_config.host }};
     location / {
+      set $full_url   "#REDIRECT-WITH-HASH#";
+      set $dest_host  "#REDIRECT-WITH-HASH#";
       add_header Content-Type text/html;
       return 200 '<html lang="en"><head><title>redirect</title></head><body><script type="text/javascript">window.location.href="{{ redirect_config.url2 }}" + location.pathname + location.search + location.hash;</script></body></html>';
     }

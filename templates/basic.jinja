@@ -55,8 +55,11 @@ server {
 {% elif not tls_key_valid %}
   # crt file [/etc/nginx/certs/{{ listen_config.tls }}.key] not found
 {% endif %}
-{% endif %}
   listen {{ listen_config.listen_port }};
+{% else %}
+  # real server
+  listen 81;
+{% endif %}
   ssl_verify_client off;
   {% if listen_config.server_dns %}
     resolver {{ listen_config.server_dns }} valid=60s;
