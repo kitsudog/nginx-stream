@@ -13,7 +13,7 @@ http {
   default_type  application/octet-stream;
   log_format  main  '$remote_addr $http_host $remote_user [$time_local] "$request" '
                     '$status $body_bytes_sent "$http_referer" '
-                    '"$http_user_agent" "$http_x_forwarded_for" ' [Proxy-pass=$upstream_addr @ $dest_host] $full_url;
+                    '"$http_user_agent" "$http_x_forwarded_for" [Proxy-pass=$upstream_addr @ $dest_host] $full_url';
 
   access_log  /var/log/nginx/access.log  main;
   sendfile        on;
@@ -171,7 +171,7 @@ http {
 {% endfor %}
   # UPSTREAM END
   # LISTEN START
-  {% filter indent(2) %}{{ listen }}{% endfilter %}
+  {% filter indent(2) %}{% include 'basic.jinja' %}{% endfilter %}
   # LISTEN END
   # REDIRECT START
 {%- for redirect_config in redirect_config_list %}

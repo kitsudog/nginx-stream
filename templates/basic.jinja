@@ -1,40 +1,84 @@
-{% if ex %}
-# EX GATEWAY
-{{ proxy_config }}
-{% endif %}
+{%- for listen_config in listen_config_list %}
+# CONFIG {{ listen_config.config }} START
+{% if listen_config.ex %}
+# EX GATEWAY START
 server {
-{% if tls == False %}
-{% elif tls_crt_valid and tls_key_valid %}
-  listen {tls_listen_port} ssl;
+  server_name {{ listen_config.listen_host }};
+{% if listen_config.tls == False %}
+  # no tls
+{% elif listen_config.tls_crt_valid and listen_config.tls_key_valid %}
+  # active tls start
+  listen {{ listen_config.tls_listen_port }} ssl;
   ssl_session_timeout 5m;
   ssl_session_cache shared:SSL:50m;
   ssl_session_tickets off;
-  ssl_certificate /etc/nginx/certs/{{ tls }}.crt;
-  ssl_certificate_key /etc/nginx/certs/{{ tls }}.key;
+  ssl_certificate /etc/nginx/certs/{{ listen_config.tls }}.crt;
+  ssl_certificate_key /etc/nginx/certs/{{ listen_config.tls }}.key;
+  # active tls end
 {% elif not tls_crt_valid %}
-  # crt file [/etc/nginx/certs/{{ tls }}.crt] not found
+  # crt file [/etc/nginx/certs/{{ listen_config.tls }}.crt] not found
 {% elif not tls_key_valid %}
-  # crt file [/etc/nginx/certs/{{ tls }}.key] not found
+  # crt file [/etc/nginx/certs/{{ listen_config.tls }}.key] not found
 {% endif %}
-  listen {{ listen_port }};
-  server_name {{ listen_host }};
+  listen 80;
   ssl_verify_client off;
-  {{ ("resolver %s valid=60s;" % server_dns) if server_dns else "" }}
-{% for location in location_config_list %}
-  location {{ location.listen_path }} {
-    add_header {{ location.header }} {{ location.header_value }};
-    proxy_set_header X-FROM {{ location.listen_host }};
-    proxy_set_header Host {{ location.proxy_host }};
-{% if location.https %}
-    proxy_pass https://{{ location.host }}:{{ location.port }}{{ location.url }};
-{% else %}
-    proxy_pass http://{{ location.host }}:{{ location.port }}{{ location.url }};
-{% endif %}
+
+  location / {
+    proxy_set_header Host ${http_host};
+    set $dest_host "#internal-server#";
+    set $full_url "http://127.0.0.1:8000/";
+    proxy_pass http://127.0.0.1:8000/;
     proxy_redirect default;
     proxy_ssl_server_name on;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection $proxy_connection;
-{%- if location.cross_domain is true or location.cross_domain.lower()=="true" %}
+  }
+}
+# EX GATEWAY END
+{% endif %}
+server {
+  server_name {{ listen_config.listen_host }};
+{% if not listen_config.ex %}
+{% if listen_config.tls == False %}
+  # no tls
+{% elif listen_config.tls_crt_valid and listen_config.tls_key_valid %}
+  # active tls start
+  listen {{ listen_config.tls_listen_port }} ssl;
+  ssl_session_timeout 5m;
+  ssl_session_cache shared:SSL:50m;
+  ssl_session_tickets off;
+  ssl_certificate /etc/nginx/certs/{{ listen_config.tls }}.crt;
+  ssl_certificate_key /etc/nginx/certs/{{ listen_config.tls }}.key;
+  # active tls end
+{% elif not tls_crt_valid %}
+  # crt file [/etc/nginx/certs/{{ listen_config.tls }}.crt] not found
+{% elif not tls_key_valid %}
+  # crt file [/etc/nginx/certs/{{ listen_config.tls }}.key] not found
+{% endif %}
+{% endif %}
+  listen {{ listen_config.listen_port }};
+  ssl_verify_client off;
+  {% if listen_config.server_dns %}
+    resolver {{ listen_config.server_dns }} valid=60s;
+  {% endif %}
+{% for location in listen_config.location_config_list %}
+  location {{ listen_config.listen_path }} {
+    add_header {{ location.header }} {{ location.header_value }};
+    proxy_set_header X-FROM {{ location.listen_host }};
+    proxy_set_header Host {{ location.proxy_host }};
+    set $dest_host "{{ location.host }}";
+{%- if location.https %}
+    set $full_url "https://{{ location.host }}:{{ location.port }}{{ location.url }}";
+    proxy_pass https://{{ location.host }}:{{ location.port }}{{ location.url }};
+{% else %}
+    set $full_url "http://{{ location.host }}:{{ location.port }}{{ location.url }}";
+    proxy_pass http://{{ location.host }}:{{ location.port }}{{ location.url }};
+{%- endif %}
+    proxy_redirect default;
+    proxy_ssl_server_name on;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $proxy_connection;
+{%- if location.cross_domain is true or location.cross_domain.lower() == "true" %}
     # active cross_domain start
     add_header 'Access-Control-Allow-Origin'      '${http_origin}';
     add_header 'Access-Control-Allow-Methods'     'GET, POST, OPTIONS';
@@ -52,3 +96,5 @@ server {
   }
 {% endfor %}
 }
+# CONFIG {{ listen_config.config }} END
+{% endfor %}

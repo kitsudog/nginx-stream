@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import os
-import re
 from collections import ChainMap
 from typing import Dict
 
@@ -30,59 +29,17 @@ def render(template, *, default: Dict = {}, **kwargs):
     return jinja2_env.get_template(template).render(data)
 
 
-def listen_config_gen(host: str, ex: bool = False, **kwargs):
-    kwargs2 = kwargs.copy()
-    kwargs["host"] = host
-    kwargs["ex"] = ex
-    tls = kwargs.get("tls", "nginx")
-    if ex:
-        kwargs["listen_port"] = 81
-        kwargs["tls"] = False
-    else:
-        kwargs["tls"] = tls
-
-    core = render("basic.jinja", default={
-        "listen_port": 80,
-        "listen_host": "_",
-        "server_dns": "",
-        "tls_listen_port": 443,
-        "tls": "nginx",
-        "tls_crt_valid": os.path.exists(f"/etc/nginx/certs/{tls}.crt"),
-        "tls_key_valid": os.path.exists(f"/etc/nginx/certs/{tls}.key"),
-        "location_config_list": [ChainMap(kwargs, {
-            "listen_host": "_",
-            "listen_path": "/",
-            "header": "FROM",
-            "header_value": "nginx-stream",
-            "proxy_host": "$proxy_host",
-            "https": False,
-            "url": "",
-            "cross_domain": "",
-        })],
-        "ex": ex,
-        "proxy_config": listen_config_gen(**ChainMap({
-            "listen_port": 80,
-            "host": "127.0.0.1",
-            "port": 8000,
-            "proxy_host": host,
-            "https": False,
-            "ex": False,
-        }, kwargs2)) if ex else "",
-    }, **kwargs)
-    return re.sub("\n\n+", "\n", core)
-
-
 # noinspection HttpUrlsUsage
 def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, redirect_config_list, listen_port=80,
                      dns="8.8.8.8", config_file="/etc/nginx/nginx.conf", client_size="10m", external_host="$http_host",
                      external_proto="http"):
-    kwargs = locals()
+    kwargs = locals().copy()
     tmp = {}
     for each in listen_config_list:
         listen_host = each['listen_host']
         _, _, listen_host2 = listen_host.partition(".")
         # noinspection PyPep8Naming
-        CERT_DIR = "/etc/nginx/certs"
+        CERT_DIR = os.environ.get("CERT_DIR", "/etc/nginx/certs")
         if os.path.exists(f"{CERT_DIR}/{listen_host}.key") and os.path.exists(f"{CERT_DIR}/{listen_host}.crt"):
             each["tls"] = listen_host
         elif os.path.exists(f"{CERT_DIR}/{listen_host2}.key") and os.path.exists(f"{CERT_DIR}/{listen_host2}.crt"):
@@ -92,14 +49,33 @@ def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, 
                 each["tls"] = "nginx"
         else:
             each["tls"] = False
-
+        each.update(ChainMap(each, {
+            "listen_port": 81 if each.get("ex") else 80,
+            "listen_host": "_",
+            "server_dns": "",
+            "tls_listen_port": 443,
+            "tls": "nginx",
+            "tls_crt_valid": os.path.exists(f"{CERT_DIR}/{each['tls']}.crt"),
+            "tls_key_valid": os.path.exists(f"{CERT_DIR}/{each['tls']}.key"),
+            "gateway_config": {
+                "host": each["host"],
+            },
+            "location_config_list": [
+                ChainMap(each, {
+                    "listen_host": "_",
+                    "listen_path": "/",
+                    "header": "FROM",
+                    "header_value": "nginx-stream",
+                    "proxy_host": "$proxy_host",
+                    "https": False,
+                    "url": "",
+                    "cross_domain": "",
+                })
+            ],
+        }))
         if listen_host not in tmp:
             tmp[listen_host] = []
-        tmp[listen_host].append(each)
-    listen_config = []
-    for k, each in sorted(tmp.items(), key=lambda kv: kv[0]):
-        assert len(each) == 1
-        listen_config.append(listen_config_gen(**each[0]))
+        tmp[listen_host].append(dict(each))
     for each in redirect_config_list:
         if each["url"].endswith("/"):
             url2, _, _ = each["url"].rpartition("/")
@@ -108,9 +84,7 @@ def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, 
         each["url2"] = url2
         if "mode" not in each:
             each["mode"] = "normal"
-    content = render("nginx.jinja", default={
-        "listen": "\n".join(listen_config),
-    }, **kwargs)
+    content = render("nginx.jinja", **kwargs)
     if os.environ.get("RECORD_PROXY") == "TRUE":
         content.replace('proxy_pass "${full_url}";', 'proxy_pass "http://localhost:81/${full_url}";')
     with open(config_file, mode="w") as fout:
@@ -141,7 +115,7 @@ def main():
         if not each:
             continue
         regex = re.compile(
-            '(?P<host>.+)(:(?P<listen_port>\d+))?=(?P<url>.+)'
+            r'(?P<host>.+)(:(?P<listen_port>\d+))?=(?P<url>.+)'
         )
         config = next(regex.finditer(each)).groupdict()
         config['listen_port'] = int(config['listen_port'] or '80')
@@ -181,22 +155,20 @@ def main():
             print(f"get_listen_config: {line} {kwargs}")
         else:
             print(f"get_listen_config: {line}")
+        # noinspection PyShadowingNames
         config = next(regex_listen.finditer(line)).groupdict()
-        config['i'] = int(
-            k.split("_")[-1]) if k.startswith("LISTEN_") else 100 + i
-        config['port'] = int(config['port'] or 80)
-        config['listen_path'] = config['listen_path'] or '/'
+        config['i'] = int(k.split("_")[-1]) if k.startswith("LISTEN_") else 100 + i
         config['https'] = bool(config['https'])
+        config['port'] = int(config['port'] or (443 if config['https'] else 80))
+        config['listen_path'] = config['listen_path'] or '/'
         config['url'] = config['url'] or config['listen_path']
-        config['proxy_host'] = config['proxy_host'] or (
-            '$http_host' if forward else '$proxy_host')
-        config.update(
-            dict(map(lambda kv: (kv[0].lower(), kv[1]), kwargs.items())))
+        config['proxy_host'] = config['proxy_host'] or ('$http_host' if forward else '$proxy_host')
+        config.update(dict(map(lambda kv: (kv[0].lower(), kv[1]), kwargs.items())))
         print(f"LISTEN[{line}]=>[{config}]")
         config['config'] = f"{k}={line}"
         return config
 
-    for k, each in list(filter(lambda kv: re.compile("LISTEN_\d+").fullmatch(kv[0]), os.environ.items())) + list(
+    for k, each in list(filter(lambda kv: re.compile(r"LISTEN_\d+").fullmatch(kv[0]), os.environ.items())) + list(
             map(lambda x: ("LISTEN", x), os.environ.get("LISTEN", "").split(";"))):
         if not each:
             continue
