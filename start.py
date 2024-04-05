@@ -183,17 +183,6 @@ server {{
         raise Exception(f"not support mode [{mode}]")
 
 
-def stream_config_gen(host: str, port: str, listen_port: int, connect_timeout=3, timeout=10, udp=False):
-    return f"""\
-server {{
-  listen {listen_port}{" udp" if udp else ""};
-  proxy_connect_timeout {connect_timeout}s;
-  proxy_timeout {timeout}s;
-  proxy_pass {host}:{port};
-}}
-"""
-
-
 # noinspection HttpUrlsUsage
 def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, redirect_config_list, listen_port=80,
                      dns="8.8.8.8", config_file="/etc/nginx/nginx.conf", client_size="10m", external_host="$http_host",
@@ -225,7 +214,6 @@ def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, 
                 config += listen_location_config_gen(**x)
             config += listen_config_gen1(**each[0])
             listen_config.append(config)
-    stream_config = map(lambda x: stream_config_gen(**x), stream_config_list)
     redirect_config = map(lambda x: redirect_config_gen(**x), redirect_config_list)
 
     content = format_content(f"""\
@@ -396,23 +384,15 @@ http {{
   # REDIRECT END
 }}
 
-stream {{
-  log_format proxy '$remote_addr [$time_local] '
-                 '$protocol $status $bytes_sent $bytes_received '
-                 '$session_time -> $upstream_addr '
-                 '$upstream_bytes_sent $upstream_bytes_received $upstream_connect_time';
-  access_log /dev/stdout proxy buffer=32k;
-  open_log_file_cache off;
-  # STREAM START
-  %(stream)s
-  # STREAM END
-}}
+%(stream_config)s
 """, {
         "upstream": "\n".join(upsteam_config),
         "proxy": "\n".join(proxy_config),
         "listen": "\n".join(listen_config),
-        "stream": "\n".join(stream_config),
         "redirect": "\n".join(redirect_config),
+        "stream_config": jinja2_env.get_template("stream.jinja").render({
+            "stream_config_list": stream_config_list,
+        }),
     })
     if os.environ.get("RECORD_PROXY") == "TRUE":
         content.replace('proxy_pass "${full_url}";', 'proxy_pass "http://localhost:81/${full_url}";')
