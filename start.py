@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 import os
 import re
+from collections import ChainMap
+from typing import Dict
 
-from jinja2 import Environment, FileSystemLoader, Template
+from jinja2 import Environment, FileSystemLoader
 
 jinja2_env = Environment(loader=FileSystemLoader('templates'))
 
@@ -13,12 +15,11 @@ if os.path.exists(".env"):
             os.environ[k] = v
 
 
-def render(template, **kwargs):
+# noinspection PyDefaultArgument
+def render(template, *, default: Dict = {}, **kwargs):
     data = {}
-    for key, value in kwargs.items():
+    for key, value in ChainMap(kwargs, default).items():
         if key.startswith("_"):
-            continue
-        if type(value) not in {int, float, str, bool}:
             continue
         data[key] = value
     return jinja2_env.get_template(template).render(data)
@@ -58,77 +59,45 @@ upstream LISTEN_{i} {{
 """
 
 
-def listen_location_config_gen(host: str, port: int, listen_host="_",
-                               listen_path="/", header="FROM", header_value="nginx-stream",
-                               proxy_host="$proxy_host", https=False, url: str = "",
-                               cross_domain: str = "", **kwargs):
-    return render("listen-location.jinja", **locals())
-
-
-def listen_config_gen0(listen_port=80, listen_host="_", server_dns="", tls_listen_port=443, tls="nginx", **kwargs):
-    if tls:
-        if os.path.exists(f"/etc/nginx/certs/{tls}.crt"):
-            if os.path.exists(f"/etc/nginx/certs/{tls}.key"):
-                tls_config = f"""\
-  listen {tls_listen_port} ssl;
-  ssl_session_timeout 5m;
-  ssl_session_cache shared:SSL:50m;
-  ssl_session_tickets off;
-  ssl_certificate /etc/nginx/certs/{tls}.crt;
-  ssl_certificate_key /etc/nginx/certs/{tls}.key;
-"""
-            else:
-                tls_config = f"# crt file [/etc/nginx/certs/{tls}.key] not found"
-        else:
-            tls_config = f"# crt file [/etc/nginx/certs/{tls}.crt] not found"
-    else:
-        tls_config = "# no tls"
-    return f"""\
-server {{
-  {tls_config}
-  listen {listen_port};
-  server_name {listen_host};
-  ssl_verify_client off;
-  {("resolver %s valid=60s;" % server_dns) if server_dns else ""}
-"""
-
-
-def listen_config_gen1(i: int, config: str, host: str, port: int, listen_port=80, listen_host="_", server_dns="",
-                       listen_path="/", header="FROM", header_value="nginx-stream", proxy_host="$proxy_host",
-                       https=False, url: str = "", ex: bool = False, **kwargs):
-    kwargs = locals()
-    return f"""\
-}}
-"""
-
-
 def listen_config_gen(host: str, ex: bool = False, **kwargs):
     kwargs2 = kwargs.copy()
-    kwargs2["listen_port"] = 80
-    kwargs2["host"] = "127.0.0.1"
-    kwargs2["port"] = 8000
-    kwargs2["proxy_host"] = host
-    kwargs2["https"] = False
-    kwargs2["ex"] = False
-
     kwargs["host"] = host
     kwargs["ex"] = ex
+    tls = kwargs.get("tls", "nginx")
     if ex:
         kwargs["listen_port"] = 81
-    core = Template("""\
-{% if ex %}
-{{- ex_config }}
-{% endif %}
-{{- s }}
-  {% filter indent(2) %}{{ c }}{% endfilter %}
-{{ e -}}
-""").render({
-        "s": listen_config_gen0(**kwargs),
-        "c": listen_location_config_gen(**kwargs),
-        "e": listen_config_gen1(**kwargs),
+        kwargs["tls"] = False
+    else:
+        kwargs["tls"] = tls
+
+    core = render("basic.jinja", default={
+        "listen_port": 80,
+        "listen_host": "_",
+        "server_dns": "",
+        "tls_listen_port": 443,
+        "tls": "nginx",
+        "tls_crt_valid": os.path.exists(f"/etc/nginx/certs/{tls}.crt"),
+        "tls_key_valid": os.path.exists(f"/etc/nginx/certs/{tls}.key"),
+        "location_config_list": [ChainMap(kwargs, {
+            "listen_host": "_",
+            "listen_path": "/",
+            "header": "FROM",
+            "header_value": "nginx-stream",
+            "proxy_host": "$proxy_host",
+            "https": False,
+            "url": "",
+            "cross_domain": "",
+        })],
         "ex": ex,
-        "ex_config": listen_config_gen(**kwargs2) if ex else "",
-    })
+        "proxy_config": listen_config_gen(**ChainMap({
+            "listen_port": 80,
+            "host": "127.0.0.1",
+            "port": 8000,
+            "proxy_host": host,
+            "https": False,
+            "ex": False,
+        }, kwargs2)) if ex else "",
+    }, **kwargs)
     return re.sub("\n\n+", "\n", core)
 
 
@@ -201,19 +170,19 @@ def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, 
             each["tls"] = listen_host
         elif os.path.exists(f"{CERT_DIR}/{listen_host2}.key") and os.path.exists(f"{CERT_DIR}/{listen_host2}.crt"):
             each["tls"] = listen_host2
+        if each.get("tls"):
+            if each["tls"].upper() == "TRUE":
+                each["tls"] = "nginx"
+        else:
+            each["tls"] = False
+
         if listen_host not in tmp:
             tmp[listen_host] = []
         tmp[listen_host].append(each)
     listen_config = []
     for k, each in sorted(tmp.items(), key=lambda kv: kv[0]):
-        if len(each) == 1:
-            listen_config.append(listen_config_gen(**each[0]))
-        else:
-            config = listen_config_gen0(**each[0])
-            for x in each:
-                config += listen_location_config_gen(**x)
-            config += listen_config_gen1(**each[0])
-            listen_config.append(config)
+        assert len(each) == 1
+        listen_config.append(listen_config_gen(**each[0]))
     redirect_config = map(lambda x: redirect_config_gen(**x), redirect_config_list)
 
     content = format_content(f"""\

@@ -1,0 +1,54 @@
+{% if ex %}
+# EX GATEWAY
+{{ proxy_config }}
+{% endif %}
+server {
+{% if tls == False %}
+{% elif tls_crt_valid and tls_key_valid %}
+  listen {tls_listen_port} ssl;
+  ssl_session_timeout 5m;
+  ssl_session_cache shared:SSL:50m;
+  ssl_session_tickets off;
+  ssl_certificate /etc/nginx/certs/{{ tls }}.crt;
+  ssl_certificate_key /etc/nginx/certs/{{ tls }}.key;
+{% elif not tls_crt_valid %}
+  # crt file [/etc/nginx/certs/{{ tls }}.crt] not found
+{% elif not tls_key_valid %}
+  # crt file [/etc/nginx/certs/{{ tls }}.key] not found
+{% endif %}
+  listen {{ listen_port }};
+  server_name {{ listen_host }};
+  ssl_verify_client off;
+  {{ ("resolver %s valid=60s;" % server_dns) if server_dns else "" }}
+{% for location in location_config_list %}
+  location {{ location.listen_path }} {
+    add_header {{ location.header }} {{ location.header_value }};
+    proxy_set_header X-FROM {{ location.listen_host }};
+    proxy_set_header Host {{ location.proxy_host }};
+{% if location.https %}
+    proxy_pass https://{{ location.host }}:{{ location.port }}{{ location.url }};
+{% else %}
+    proxy_pass http://{{ location.host }}:{{ location.port }}{{ location.url }};
+{% endif %}
+    proxy_redirect default;
+    proxy_ssl_server_name on;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $proxy_connection;
+{%- if location.cross_domain is true or location.cross_domain.lower()=="true" %}
+    # active cross_domain start
+    add_header 'Access-Control-Allow-Origin'      '${http_origin}';
+    add_header 'Access-Control-Allow-Methods'     'GET, POST, OPTIONS';
+    add_header 'Access-Control-Allow-Headers'     'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range';
+    add_header 'Access-Control-Expose-Headers'    'Content-Length,Content-Range';
+    # active cross_domain over
+{%- elif location.cross_domain  %}
+    # active cross_domain start
+    add_header 'Access-Control-Allow-Origin'      '{{ location.cross_domain }}';
+    add_header 'Access-Control-Allow-Methods'     'GET, POST, OPTIONS';
+    add_header 'Access-Control-Allow-Headers'     'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range';
+    add_header 'Access-Control-Expose-Headers'    'Content-Length,Content-Range';
+    # active cross_domain over
+{%- endif %}
+  }
+{% endfor %}
+}
