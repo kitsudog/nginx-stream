@@ -84,10 +84,20 @@ server {
     set $full_url "http://{{ location.host }}:{{ location.port }}{{ location.url }}";
     proxy_pass http://{{ location.host }}:{{ location.port }}{{ location.url }};
 {%- endif %}
-    proxy_redirect default;
-    proxy_ssl_server_name on;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection $proxy_connection;
+{%- if location.cache and location.cache.lower() == "true" %}
+    # active cache start
+    proxy_cache             default_cache;
+    proxy_cache_valid       200 10s;
+{%- if location.cache_force and location.cache_force.lower() == "true" %}
+    proxy_ignore_headers    Set-Cookie;
+{%- endif %}
+    add_header              X-Proxy-Cache   $upstream_cache_status;
+    # active cache end
+{% endif %}
+    proxy_redirect          default;
+    proxy_ssl_server_name   on;
+    proxy_set_header        Upgrade     $http_upgrade;
+    proxy_set_header        Connection  $proxy_connection;
 {%- if location.cross_domain is true or location.cross_domain.lower() == "true" %}
     # active cross_domain start
     add_header 'Access-Control-Allow-Origin'      '${http_origin}';

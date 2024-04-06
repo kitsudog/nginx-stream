@@ -12,5 +12,6 @@ ENV TCPDUMP_DURATION=60 \
 COPY *.sh *.py /app/
 COPY templates/ /app/templates/
 COPY certs/ /etc/nginx/certs/
+#VOLUME /var/cache/nginx
 WORKDIR /app
 ENTRYPOINT ["/app/start.sh"]
