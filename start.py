@@ -181,7 +181,7 @@ def main():
         params["ex"] = params.get("ex", "false").lower() == "true"
         listen_config.append(get_listen_config(each, **params))
 
-    for k, each in list(filter(lambda kv: re.compile(r"FORWARD_\d+").match(kv[0]), os.environ.items())) + list(
+    for k, each in list(filter(lambda kv: re.compile(r"FORWARD_\d+").fullmatch(kv[0]), os.environ.items())) + list(
             map(lambda x: ("FORWARD", x), os.environ.get("FORWARD", "").split(";"))):
         if not each:
             continue
