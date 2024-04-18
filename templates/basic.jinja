@@ -27,14 +27,14 @@ server {
   client_body_buffer_size 10m;
 {% endif %}
   location / {
-    proxy_set_header Host ${http_host};
-    set $dest_host "#internal-server#";
-    set $full_url "http://127.0.0.1:8000/";
-    proxy_pass http://127.0.0.1:8000/;
-    proxy_redirect default;
-    proxy_ssl_server_name on;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection $proxy_connection;
+    proxy_set_header        Host ${http_host};
+    set                     $dest_host          "#internal-server#";
+    set                     $full_url           "http://127.0.0.1:8000/";
+    proxy_pass              http://127.0.0.1:8000/;
+    proxy_redirect          default;
+    proxy_ssl_server_name   on;
+    proxy_set_header        Upgrade             $http_upgrade;
+    proxy_set_header        Connection          $proxy_connection;
   }
 }
 # EX GATEWAY END
@@ -68,9 +68,9 @@ server {
   client_max_body_size {{ listen_config.client_size }};
   client_body_buffer_size 10m;
 {% endif %}
-  {% if listen_config.server_dns %}
-    resolver {{ listen_config.server_dns }} valid=60s;
-  {% endif %}
+{% if listen_config.server_dns %}
+  resolver {{ listen_config.server_dns }} valid=60s;
+{% endif %}
 {% for location in listen_config.location_config_list %}
   location {{ listen_config.listen_path }} {
     add_header {{ location.header }} {{ location.header_value }};
@@ -78,8 +78,15 @@ server {
     proxy_set_header Host {{ location.proxy_host }};
     set $dest_host "{{ location.host }}";
 {%- if location.https %}
-    set $full_url "https://{{ location.host }}:{{ location.port }}{{ location.url }}";
-    proxy_pass https://{{ location.host }}:{{ location.port }}{{ location.url }};
+{% if location.client_tls_crt_valid and location.client_tls_key_valid %}
+    proxy_ssl_certificate       /etc/nginx/certs/{{ location.client_tls }}-client.crt;
+    proxy_ssl_certificate_key   /etc/nginx/certs/{{ location.client_tls }}-client.key;
+    set $full_url               "https://{{ location.host }}:{{ location.port }}{{ location.url }}";
+    proxy_pass                  "https://{{ location.host }}:{{ location.port }}{{ location.url }}";
+{% else %}
+    set $full_url               "https://{{ location.host }}:{{ location.port }}{{ location.url }}";
+    proxy_pass                  "https://{{ location.host }}:{{ location.port }}{{ location.url }}";
+{% endif %}
 {% else %}
     set $full_url "http://{{ location.host }}:{{ location.port }}{{ location.url }}";
     proxy_pass http://{{ location.host }}:{{ location.port }}{{ location.url }};

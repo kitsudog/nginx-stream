@@ -44,11 +44,20 @@ def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, 
             each["tls"] = listen_host
         elif os.path.exists(f"{CERT_DIR}/{listen_host2}.key") and os.path.exists(f"{CERT_DIR}/{listen_host2}.crt"):
             each["tls"] = listen_host2
+        if os.path.exists(f"{CERT_DIR}/{listen_host}-client.key") and os.path.exists(f"{CERT_DIR}/{listen_host}-client.crt"):
+            each["client_tls"] = listen_host
+        elif os.path.exists(f"{CERT_DIR}/{listen_host2}-client.key") and os.path.exists(f"{CERT_DIR}/{listen_host2}-client.crt"):
+            each["client_tls"] = listen_host2
         if each.get("tls"):
             if each["tls"].upper() == "TRUE":
                 each["tls"] = "nginx"
         else:
             each["tls"] = False
+        if each.get("client_tls"):
+            if each["client_tls"].upper() == "TRUE":
+                each["client_tls"] = "nginx"
+        else:
+            each["client_tls"] = False
         each.update(ChainMap(each, {
             "listen_port": 81 if each.get("ex") else 80,
             "listen_host": "_",
@@ -57,6 +66,8 @@ def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, 
             "tls": "nginx",
             "tls_crt_valid": os.path.exists(f"{CERT_DIR}/{each['tls']}.crt"),
             "tls_key_valid": os.path.exists(f"{CERT_DIR}/{each['tls']}.key"),
+            "client_tls_crt_valid": os.path.exists(f"{CERT_DIR}/{each['client_tls']}-client.crt"),
+            "client_tls_key_valid": os.path.exists(f"{CERT_DIR}/{each['client_tls']}-client.key"),
             "gateway_config": {
                 "host": each["host"],
             },
