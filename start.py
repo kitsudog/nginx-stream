@@ -32,7 +32,8 @@ def render(template, *, default: Dict = {}, **kwargs):
 # noinspection HttpUrlsUsage
 def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, redirect_config_list, listen_port=80,
                      dns="8.8.8.8", config_file="/etc/nginx/nginx.conf", client_size="10m", external_host="$http_host",
-                     external_proto="http"):
+                     external_proto="http", proxy_listen_port=82, disable_proxy="FALSE"):
+    disable_proxy = str(disable_proxy).lower() in {"true", "1"}
     kwargs = locals().copy()
     tmp = {}
     for each in listen_config_list:
@@ -40,13 +41,15 @@ def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, 
         _, _, listen_host2 = listen_host.partition(".")
         # noinspection PyPep8Naming
         CERT_DIR = os.environ.get("CERT_DIR", "/etc/nginx/certs")
-        if os.path.exists(f"{CERT_DIR}/{listen_host}.key") and os.path.exists(f"{CERT_DIR}/{listen_host}.crt"):
+        prefix = f"{CERT_DIR}/{listen_host}"
+        prefix2 = f"{CERT_DIR}/{listen_host2}"
+        if os.path.exists(f"{prefix}.key") and os.path.exists(f"{prefix}.crt"):
             each["tls"] = listen_host
-        elif os.path.exists(f"{CERT_DIR}/{listen_host2}.key") and os.path.exists(f"{CERT_DIR}/{listen_host2}.crt"):
+        elif os.path.exists(f"{prefix2}.key") and os.path.exists(f"{prefix2}.crt"):
             each["tls"] = listen_host2
-        if os.path.exists(f"{CERT_DIR}/{listen_host}-client.key") and os.path.exists(f"{CERT_DIR}/{listen_host}-client.crt"):
+        if os.path.exists(f"{prefix}-client.key") and os.path.exists(f"{prefix}-client.crt"):
             each["client_tls"] = listen_host
-        elif os.path.exists(f"{CERT_DIR}/{listen_host2}-client.key") and os.path.exists(f"{CERT_DIR}/{listen_host2}-client.crt"):
+        elif os.path.exists(f"{prefix2}-client.key") and os.path.exists(f"{prefix2}-client.crt"):
             each["client_tls"] = listen_host2
         if each.get("tls"):
             if each["tls"].upper() == "TRUE":
@@ -189,7 +192,7 @@ def main():
         params = dict(
             map(lambda kv: (kv[0][len(k) + 1:].lower(), kv[1]), params)
         )
-        params["ex"] = params.get("ex", "false").lower() == "true"
+        params["ex"] = str(params.get("ex", "false")).lower() == "true"
         listen_config.append(get_listen_config(each, **params))
 
     for k, each in list(filter(lambda kv: re.compile(r"FORWARD_\d+").fullmatch(kv[0]), os.environ.items())) + list(
