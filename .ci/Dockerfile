@@ -4,7 +4,6 @@ COPY requirements.txt /app/requirements.txt
 RUN pip install -r /app/requirements.txt && rm -rf /root/.cache/pip
 ENV TCPDUMP_DURATION=60 \
     PROXY_LISTEN_PORT=82 \
-    DISABLE_PROXY=FALSE \
 #    FILTER_EXPR="~c 200 ~ts json" \
 #    MONGO_COLLECTION=record \
     KEEP_TIME=720 \

@@ -66,16 +66,15 @@ http {
   proxy_send_timeout        1m;
 
   server {
-    server_name _;
-    access_log off;
+    listen         80;
+    server_name    _;
+    access_log     off;
     location / {
-      proxy_pass http://127.0.0.1:82;
+      proxy_pass http://127.0.0.1:{{ proxy_listen_port }};
       proxy_redirect http://internal {{ external_proto }}://{{ external_host }};
     }
   }
-{% if not disable_proxy %}
-{% filter indent(2) %}{% include 'proxy.jinja' %}{% endfilter %}
-{% endif %}
+  {% filter indent(2) %}{% include 'proxy.jinja' %}{% endfilter %}
   # UPSTREAM START
 {%- for listen_config in listen_config_list %}
   upstream LISTEN_{{ loop.index }} {
@@ -126,27 +125,4 @@ http {
 {%- endfor %}
   # REDIRECT END
 }
-
-stream {
-  log_format proxy          '$remote_addr [$time_local] '
-                            '$protocol $status $bytes_sent $bytes_received '
-                            '$session_time -> $upstream_addr '
-                            '$upstream_bytes_sent $upstream_bytes_received $upstream_connect_time';
-  access_log                /dev/stdout proxy buffer=32k;
-  open_log_file_cache       off;
-  resolver                  {{ dns }} valid=60s ipv6=off;
-  # STREAM START
-{%- for stream in stream_config_list %}
-  server {
-    {% if stream.udp %}
-    listen                  {{ stream.listen_port }} udp;
-    {% else %}
-    listen                  {{ stream.listen_port }};
-    {% endif %}
-    proxy_connect_timeout   {{ stream.connect_timeout | default(3) }}s;
-    proxy_timeout           {{ stream.timeout | default(10) }}s;
-    proxy_pass              {{ stream.host }}:{{ stream.port }};
-  }
-{% endfor -%}
-  # STREAM END
-}
+{% include 'stream.jinja' %}
