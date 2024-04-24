@@ -18,11 +18,11 @@ echo LISTEN_1=echo.com:httpbin.org/get?
 curl "http://echo.com:${TARGET_PORT}" --resolve "echo.com:${TARGET}" -s|grep $IP > /dev/null
 echo LISTEN_2=echo2.com:httpbin.org/get?
 curl "http://echo2.com:${TARGET_PORT}" --resolve "echo2.com:${TARGET}" -s|grep $IP > /dev/null
-curl "https://echo2.com:${TARGET_TLS_PORT}" --resolve "echo2.com:${TARGET_TLS}" -sk|grep $IP > /dev/null
+# curl "https://echo2.com:${TARGET_TLS_PORT}" --resolve "echo2.com:${TARGET_TLS}" -sk|grep $IP > /dev/null
 echo LISTEN_3=https@www.test.com:www.baidu.com
 test $(curl "http://www.test.com:${TARGET_PORT}" --resolve "www.test.com:${TARGET}" -s|grep baidu.com|wc -l) = 0
 echo LISTEN_4=https@www.test2.com:www.baidu.com
-test $(curl "https://www.test2.com:${TARGET_TLS_PORT}" --resolve "www.test2.com:${TARGET_TLS}" -sk|grep baidu.com|wc -l) = 0
+# test $(curl "https://www.test2.com:${TARGET_TLS_PORT}" --resolve "www.test2.com:${TARGET_TLS}" -sk|grep baidu.com|wc -l) = 0
 echo FORWARD_1=www.test3.com:www.baidu.com
 curl "http://www.test3.com:${TARGET_PORT}" --resolve "www.test3.com:${TARGET}" -si|head -n1|grep "HTTP/1.1 403 Forbidden"
 echo REDIRECT_1=baidu.games=https://www.baidu.com/

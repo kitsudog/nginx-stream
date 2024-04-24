@@ -30,7 +30,8 @@ def render(template, *, default: Dict = {}, **kwargs):
 
 
 # noinspection HttpUrlsUsage
-def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, redirect_config_list, listen_port=80,
+def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, redirect_config_list,
+                     tunnel_config_list, listen_port=80,
                      dns="8.8.8.8", config_file="/etc/nginx/nginx.conf", client_size="10m", external_host="$http_host",
                      external_proto="http", proxy_listen_port=82, disable_proxy="FALSE"):
     disable_proxy = str(disable_proxy).lower() in {"true", "1"}
@@ -123,8 +124,30 @@ def main():
     bind_config = []
     forward_config = []
     redirect_config = []
+    tunnel_config = []
     proxy_config = []
-    for k, each in list(filter(lambda kv: re.compile("REDIRECT_\d+").fullmatch(kv[0]), os.environ.items())) + list(
+    for i, k_each in enumerate(
+            list(filter(lambda kv: re.compile(r"TUNNEL_\d+").fullmatch(kv[0]), os.environ.items())) + list(
+                map(lambda x: ("TUNNEL", x), os.environ.get("TUNNEL", "").split(";"))),
+            start=1
+    ):
+        k, each = k_each
+        if not each:
+            continue
+        regex = re.compile(
+            r'(?P<host>.+)(:(?P<listen_port>\d+))?'
+        )
+        config = next(regex.finditer(each)).groupdict()
+        config["id"] = i
+        config['listen_port'] = int(config['listen_port'] or '443')
+        params = filter(lambda kv: kv[0].startswith(f"{k}_"), os.environ.items())
+        params = dict(
+            map(lambda kv: (kv[0][len(k) + 1:].lower(), kv[1]), params)
+        )
+        config.update(params)
+        tunnel_config.append(config)
+
+    for k, each in list(filter(lambda kv: re.compile(r"REDIRECT_\d+").fullmatch(kv[0]), os.environ.items())) + list(
             map(lambda x: ("REDIRECT", x), os.environ.get("REDIRECT", "").split(";"))):
         if not each:
             continue
@@ -140,7 +163,7 @@ def main():
         config.update(params)
         redirect_config.append(config)
 
-    for k, each in list(filter(lambda kv: re.compile("BIND_\d+").match(kv[0]), os.environ.items())) + list(
+    for k, each in list(filter(lambda kv: re.compile(r"BIND_\d+").match(kv[0]), os.environ.items())) + list(
             map(lambda x: ("BIND", x), os.environ.get("BIND", "").split(";"))):
         if not each:
             continue
@@ -162,7 +185,6 @@ def main():
         r':(?P<host>[^:/]+)(:(?P<port>\d+))?(?P<url>/[^@]+)?'
         r'(@(?P<proxy_host>.+))?'
     )
-    i = 0
 
     def get_listen_config(line, forward=False, **kwargs):
         if kwargs:
@@ -182,13 +204,18 @@ def main():
         config['config'] = f"{k}={line}"
         return config
 
-    for k, each in list(filter(lambda kv: re.compile(r"LISTEN_\d+").fullmatch(kv[0]), os.environ.items())) + list(
-            map(lambda x: ("LISTEN", x), os.environ.get("LISTEN", "").split(";"))):
+    for i, k_each in enumerate(list(filter(
+            lambda kv: re.compile(r"LISTEN_\d+").fullmatch(kv[0]),
+            os.environ.items()
+    )) + list(map(
+        lambda x: ("LISTEN", x),
+        os.environ.get("LISTEN", "").split(";")
+    ))):
+        k, each = k_each
         if not each:
             continue
         print("listen", k, each)
-        i += 1
-        params = filter(lambda kv: kv[0].startswith(f"{k}_"), os.environ.items())
+        params = list(filter(lambda kv: kv[0].startswith(f"{k}_"), os.environ.items()))
         params = dict(
             map(lambda kv: (kv[0][len(k) + 1:].lower(), kv[1]), params)
         )
@@ -205,7 +232,7 @@ def main():
 
     # noinspection PyTypeChecker
     for k, each in list(filter(
-            lambda kv: re.compile("PROXY_\d+").match(kv[0]),
+            lambda kv: re.compile(r"PROXY_\d+").match(kv[0]),
             os.environ.items()
     )) + list(map(
         lambda x: ("PROXY", x),
@@ -224,6 +251,7 @@ def main():
         redirect_config_list=redirect_config,
         stream_config_list=bind_config,
         proxy_config_list=proxy_config,
+        tunnel_config_list=tunnel_config,
         **env_params(gen_nginx_config)
     )
 
