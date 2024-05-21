@@ -41,16 +41,15 @@ server {
 {% endif %}
 {% if listen_config.geo_white or listen_config.geo_black %}
 # GEO START
-geo $user_type {
-  {{ "%-20s" % "default" }} band;
-{%- if listen_config.geo_white -%}{%- for geo in listen_config.geo_white.split(",") %}
+geo $user_type_{{ listen_config.i }} {
+  {{ "%-20s" % "default" }} ban;
+  {%- if listen_config.geo_white -%}{%- for geo in listen_config.geo_white.split(",") %}
   {{ "%-20s" % geo }} white;
-{%- endfor %}{%- endif -%}
-{% if listen_config.geo_black %}{%- for geo in listen_config.geo_black.split(",") %}
-  {{ "%-20s" % geo }} band;
-{%- endfor %}{% endif %}
+  {%- endfor %}{%- endif -%}
+  {% if listen_config.geo_black %}{%- for geo in listen_config.geo_black.split(",") %}
+  {{ "%-20s" % geo }} ban;
+  {%- endfor %}{% endif %}
 }
-
 # GEO END
 {% endif -%}
 server {
@@ -85,28 +84,37 @@ server {
 {% if listen_config.server_dns %}
   resolver {{ listen_config.server_dns }} valid=60s;
 {% endif %}
-{% if listen_config.geo_white %}
-  if ($user_type = band) {
-    {%- if listen_config.geo_redirect %}
-      return 301 "{{ listen_config.geo_redirect  }}";
-    {%- else %}
-      return 503;
-    {%- endif %}
-  }
-{% endif -%}
 {%- if listen_config.header %}
   # HEADER START
 {%- for header in listen_config.header.split(";") %}
   add_header {{ "%-10s" % header.partition("=")[0] }} "{{ header.partition("=")[-1] }}" always;
 {%- endfor %}
   # HEADER END
-{%- endif -%}
+{%- endif %}
+{% if listen_config.geo_white or listen_config.geo_black %}
+  location @custom {
+    {%- if listen_config.ban_header %}{%- for header in listen_config.ban_header.split(";") %}
+    add_header {{ "%-10s" % header.partition("=")[0] }} "{{ header.partition("=")[-1] }}" always;
+    {%- endfor %}{%- endif %}
+    {%- if listen_config.geo_redirect %}
+    return 301 "{{ listen_config.geo_redirect  }}";
+    {%- else %}
+    return 503;
+    {%- endif %}
+  }
+{% endif -%}
 {% for location in listen_config.location_config_list %}
   location {{ listen_config.listen_path }} {
-    add_header       FROM   nginx-stream;
-    proxy_set_header X-FROM {{ location.listen_host }};
-    proxy_set_header Host {{ location.proxy_host }};
-    set $dest_host "{{ location.host }}";
+    {% if listen_config.geo_white or listen_config.geo_black -%}
+    if ($user_type_{{ listen_config.i }} = ban) {
+      return 503;
+    }
+    error_page                  503 = @custom;
+    {% endif -%}
+    add_header                  FROM   nginx-stream;
+    proxy_set_header            X-FROM {{ location.listen_host }};
+    proxy_set_header            Host {{ location.proxy_host }};
+    set                         $dest_host "{{ location.host }}";
 {%- if location.https %}
 {% if location.client_tls_crt_valid and location.client_tls_key_valid %}
     proxy_ssl_certificate       /etc/nginx/certs/{{ location.client_tls }}-client.crt;

@@ -33,11 +33,12 @@ def render(template, *, default: Dict = {}, **kwargs):
 def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, redirect_config_list,
                      tunnel_config_list, listen_port=80,
                      dns="8.8.8.8", config_file="/etc/nginx/nginx.conf", client_size="10m", external_host="$http_host",
-                     external_proto="http", proxy_listen_port=82, disable_proxy="FALSE", default_forward=False):
+                     external_proto="http", proxy_listen_port=82, disable_proxy="FALSE", default_forward=False,
+                     default_geo_white="", default_geo_black="", default_ban_header="", default_geo_redirect=""):
     disable_proxy = str(disable_proxy).lower() in {"true", "1"}
     kwargs = locals().copy()
     tmp = {}
-    for each in listen_config_list:
+    for i, each in enumerate(listen_config_list):
         listen_host = each['listen_host']
         _, _, listen_host2 = listen_host.partition(".")
         # noinspection PyPep8Naming
@@ -63,6 +64,7 @@ def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, 
         else:
             each["client_tls"] = False
         each.update(ChainMap(each, {
+            "i": i,
             "listen_port": 81 if each.get("ex") else 80,
             "listen_host": "_",
             "server_dns": "",

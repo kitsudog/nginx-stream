@@ -66,11 +66,42 @@ http {
   proxy_send_timeout        1m;
 
 {% if default_forward %}
+  {% if default_geo_white or default_geo_black %}
+  # GEO START
+  geo $default_user_type {
+    {{ "%-20s" % "default" }} ban;
+    {%- if default_geo_white -%}{%- for geo in default_geo_white.split(",") %}
+    {{ "%-20s" % geo }} white;
+    {%- endfor %}{%- endif -%}
+    {% if default_geo_black %}{%- for geo in default_geo_black.split(",") %}
+    {{ "%-20s" % geo }} ban;
+    {%- endfor %}{% endif %}
+  }
+  # GEO END
+  {% endif %}
   server {
     listen          80;
     server_name     _;
     access_log      /var/log/nginx/access.log  main;
+    {% if default_geo_white or default_geo_black %}
+    location @custom {
+      {%- if default_ban_header %}{%- for header in default_ban_header.split(";") %}
+      add_header {{ "%-10s" % header.partition("=")[0] }} "{{ header.partition("=")[-1] }}" always;
+      {%- endfor %}{%- endif %}
+      {%- if default_geo_redirect %}
+      return 301 "{{ default_geo_redirect  }}";
+      {%- else %}
+      return 503;
+      {%- endif %}
+    }
+    {% endif %}
     location        / {
+      {% if default_geo_white or default_geo_black -%}
+      if ($default_user_type = ban) {
+        return 503;
+      }
+      error_page            503 = @custom;
+      {% endif -%}
       add_header            FROM        nginx-stream;
       proxy_set_header      X-FROM      $http_host;
       proxy_set_header      Host        $http_host;
