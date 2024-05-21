@@ -68,7 +68,7 @@ http {
 {% if default_forward %}
   {% if default_geo_white or default_geo_black %}
   # GEO START
-  geo $default_user_type {
+  geo $http_x_forwarded_for $default_user_type {
     {{ "%-20s" % "default" }} ban;
     {%- if default_geo_white -%}{%- for geo in default_geo_white.split(",") %}
     {{ "%-20s" % geo }} white;

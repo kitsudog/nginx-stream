@@ -41,7 +41,7 @@ server {
 {% endif %}
 {% if listen_config.geo_white or listen_config.geo_black %}
 # GEO START
-geo $user_type_{{ listen_config.i }} {
+geo $http_x_forwarded_for $user_type_{{ listen_config.i }} {
   {{ "%-20s" % "default" }} ban;
   {%- if listen_config.geo_white -%}{%- for geo in listen_config.geo_white.split(",") %}
   {{ "%-20s" % geo }} white;
