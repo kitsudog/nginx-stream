@@ -79,8 +79,6 @@ def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, 
                 ChainMap(each, {
                     "listen_host": "_",
                     "listen_path": "/",
-                    "header": "FROM",
-                    "header_value": "nginx-stream",
                     "proxy_host": "$proxy_host",
                     "https": False,
                     "url": "",
@@ -215,9 +213,9 @@ def main():
         if not each:
             continue
         print("listen", k, each)
-        params = list(filter(lambda kv: kv[0].startswith(f"{k}_"), os.environ.items()))
+        _params = list(filter(lambda kv: kv[0].startswith(f"{k}_"), os.environ.items()))
         params = dict(
-            map(lambda kv: (kv[0][len(k) + 1:].lower(), kv[1]), params)
+            map(lambda kv: (kv[0][len(k) + 1:].lower(), kv[1]), _params)
         )
         params["ex"] = str(params.get("ex", "false")).lower() == "true"
         listen_config.append(get_listen_config(each, **params))
@@ -227,7 +225,6 @@ def main():
         if not each:
             continue
         print("forward:", each)
-        i += 1
         forward_config.append(get_listen_config(each, forward=True))
 
     # noinspection PyTypeChecker
@@ -240,7 +237,6 @@ def main():
     )):
         if not each:
             continue
-        i += 1
         proxy_config.append({
             "host": each.replace("http://", "").replace("https://", "").partition("/")[0],
             "proto": "https" if each.startswith("https://") else "http",

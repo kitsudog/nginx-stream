@@ -39,6 +39,20 @@ server {
 }
 # EX GATEWAY END
 {% endif %}
+{% if listen_config.geo_white or listen_config.geo_black %}
+# GEO START
+geo $user_type {
+  {{ "%-20s" % "default" }} band;
+{%- if listen_config.geo_white -%}{%- for geo in listen_config.geo_white.split(",") %}
+  {{ "%-20s" % geo }} white;
+{%- endfor %}{%- endif -%}
+{% if listen_config.geo_black %}{%- for geo in listen_config.geo_black.split(",") %}
+  {{ "%-20s" % geo }} band;
+{%- endfor %}{% endif %}
+}
+
+# GEO END
+{% endif -%}
 server {
   server_name {{ listen_config.listen_host }};
 {% if not listen_config.ex %}
@@ -71,9 +85,25 @@ server {
 {% if listen_config.server_dns %}
   resolver {{ listen_config.server_dns }} valid=60s;
 {% endif %}
+{% if listen_config.geo_white %}
+  if ($user_type = band) {
+    {%- if listen_config.geo_redirect %}
+      return 301 "{{ listen_config.geo_redirect  }}";
+    {%- else %}
+      return 503;
+    {%- endif %}
+  }
+{% endif -%}
+{%- if listen_config.header %}
+  # HEADER START
+{%- for header in listen_config.header.split(";") %}
+  add_header {{ "%-10s" % header.partition("=")[0] }} "{{ header.partition("=")[-1] }}" always;
+{%- endfor %}
+  # HEADER END
+{%- endif -%}
 {% for location in listen_config.location_config_list %}
   location {{ listen_config.listen_path }} {
-    add_header {{ location.header }} {{ location.header_value }};
+    add_header       FROM   nginx-stream;
     proxy_set_header X-FROM {{ location.listen_host }};
     proxy_set_header Host {{ location.proxy_host }};
     set $dest_host "{{ location.host }}";
