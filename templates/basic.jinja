@@ -43,10 +43,10 @@ server {
 # GEO START
 geo $http_x_forwarded_for $user_type_{{ listen_config.i }} {
   {{ "%-20s" % "default" }} ban;
-  {%- if listen_config.geo_white -%}{%- for geo in listen_config.geo_white.split(",") %}
+  {%- if listen_config.geo_white -%}{%- for geo in listen_config.geo_white.split(";") %}
   {{ "%-20s" % geo }} white;
   {%- endfor %}{%- endif -%}
-  {% if listen_config.geo_black %}{%- for geo in listen_config.geo_black.split(",") %}
+  {% if listen_config.geo_black %}{%- for geo in listen_config.geo_black.split(";") %}
   {{ "%-20s" % geo }} ban;
   {%- endfor %}{% endif %}
 }
@@ -94,11 +94,14 @@ server {
 {% if listen_config.geo_white or listen_config.geo_black %}
   location @custom {
     {%- if listen_config.ban_header %}{%- for header in listen_config.ban_header.split(";") %}
-    add_header {{ "%-10s" % header.partition("=")[0] }} "{{ header.partition("=")[-1] }}" always;
+    add_header      {{ "%-11s" % header.partition("=")[0] }} "{{ header.partition("=")[-1] }}" always;
     {%- endfor %}{%- endif %}
+    set             $dest_host  $http_host;
     {%- if listen_config.geo_redirect %}
+    set             $full_url   "#ban-301#";
     return 301 "{{ listen_config.geo_redirect  }}";
     {%- else %}
+    set             $full_url   "#ban-503#";
     return 503;
     {%- endif %}
   }

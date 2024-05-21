@@ -70,10 +70,10 @@ http {
   # GEO START
   geo $http_x_forwarded_for $default_user_type {
     {{ "%-20s" % "default" }} ban;
-    {%- if default_geo_white -%}{%- for geo in default_geo_white.split(",") %}
+    {%- if default_geo_white -%}{%- for geo in default_geo_white.split(";") %}
     {{ "%-20s" % geo }} white;
     {%- endfor %}{%- endif -%}
-    {% if default_geo_black %}{%- for geo in default_geo_black.split(",") %}
+    {% if default_geo_black %}{%- for geo in default_geo_black.split(";") %}
     {{ "%-20s" % geo }} ban;
     {%- endfor %}{% endif %}
   }
@@ -86,11 +86,14 @@ http {
     {% if default_geo_white or default_geo_black %}
     location @custom {
       {%- if default_ban_header %}{%- for header in default_ban_header.split(";") %}
-      add_header {{ "%-10s" % header.partition("=")[0] }} "{{ header.partition("=")[-1] }}" always;
+      add_header    {{ "%-11s" % header.partition("=")[0] }} "{{ header.partition("=")[-1] }}" always;
       {%- endfor %}{%- endif %}
+      set           $dest_host  $http_host;
       {%- if default_geo_redirect %}
+      set           $full_url   "#ban-301#";
       return 301 "{{ default_geo_redirect  }}";
       {%- else %}
+      set           $full_url   "#ban-503#";
       return 503;
       {%- endif %}
     }
