@@ -67,10 +67,10 @@ http {
 
 {% if default_forward %}
   server {
-    listen         80;
-    server_name    _;
-    access_log     off;
-    location / {
+    listen          80;
+    server_name     _;
+    access_log      /var/log/nginx/access.log  main;
+    location        / {
       add_header            FROM        nginx-stream;
       proxy_set_header      X-FROM      $http_host;
       proxy_set_header      Host        $http_host;
