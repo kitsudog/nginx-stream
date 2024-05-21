@@ -65,6 +65,26 @@ http {
   proxy_read_timeout        1m;
   proxy_send_timeout        1m;
 
+{% if default_forward %}
+  server {
+    listen         80;
+    server_name    _;
+    access_log     off;
+    location / {
+      add_header            FROM        nginx-stream;
+      proxy_set_header      X-FROM      $http_host;
+      proxy_set_header      Host        $http_host;
+      set                   $dest_host  $http_host;
+      set                   $full_url   "{{ default_forward }}";
+      proxy_pass            "{{ default_forward }}";
+      proxy_redirect        default;
+      proxy_ssl_server_name on;
+      proxy_ssl_name        $http_host;
+      proxy_set_header      Upgrade     $http_upgrade;
+      proxy_set_header      Connection  $proxy_connection;
+    }
+  }
+{% else %}
   server {
     listen         80;
     server_name    _;
@@ -75,6 +95,7 @@ http {
     }
   }
   {% filter indent(2) %}{% include 'proxy.jinja' %}{% endfilter %}
+{% endif %}
   # UPSTREAM START
 {%- for listen_config in listen_config_list %}
   upstream LISTEN_{{ loop.index }} {
