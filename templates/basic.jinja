@@ -101,8 +101,8 @@ server {
     set             $full_url   "#ban-301#";
     return 301 "{{ listen_config.geo_redirect  }}";
     {%- else %}
-    set             $full_url   "#ban-503#";
-    return 503;
+    set             $full_url   "#ban-403#";
+    return 403;
     {%- endif %}
   }
 {% endif -%}
@@ -110,9 +110,9 @@ server {
   location {{ listen_config.listen_path }} {
     {% if listen_config.geo_white or listen_config.geo_black -%}
     if ($user_type_{{ listen_config.i }} = ban) {
-      return 503;
+      return 403;
     }
-    error_page                  503 = @custom;
+    error_page                  403 = @custom;
     {% endif -%}
     add_header                  FROM   nginx-stream;
     proxy_set_header            X-FROM {{ location.listen_host }};
@@ -129,8 +129,8 @@ server {
     proxy_pass                  "https://{{ location.host }}:{{ location.port }}{{ location.url }}";
 {% endif %}
 {% else %}
-    set $full_url "http://{{ location.host }}:{{ location.port }}{{ location.url }}";
-    proxy_pass http://{{ location.host }}:{{ location.port }}{{ location.url }};
+    set $full_url               "http://{{ location.host }}:{{ location.port }}{{ location.url }}";
+    proxy_pass                  http://{{ location.host }}:{{ location.port }}{{ location.url }};
 {%- endif %}
 {%- if location.cache and location.cache.lower() == "true" %}
     # active cache start
