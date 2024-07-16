@@ -1,4 +1,5 @@
-FROM kitsudo/nginx-python3:3.10
+#FROM kitsudo/nginx-python3:3.10
+FROM kitsudo/openresty-python3:3.10
 RUN apk upgrade --update-cache -a && apk add --no-cache tcpdump curl && rm -rf /tmp/* /root/.cache
 COPY requirements.txt /app/requirements.txt
 RUN pip install -r /app/requirements.txt && rm -rf /root/.cache/pip

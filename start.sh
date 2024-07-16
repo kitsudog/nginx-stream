@@ -14,6 +14,9 @@ if [ $# -gt 0 ];then
     $@
     exit $?
 fi
+if [ "$(env|grep ECHO)" ]; then
+    export EX=TRUE
+fi
 if [ -n "${REPLACE}" ] || [ -n "${REPLACE_PATTERN}" ]; then
     export UPSTREAM_FILTER="replace"
     export EX=TRUE
