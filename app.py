@@ -4,6 +4,7 @@ monkey.patch_all()
 """
 负责中专请求实现额外的过滤等高级功能
 """
+import json
 from collections import UserDict
 
 
@@ -179,6 +180,22 @@ def replace(raw: bytes, headers: Headers) -> Tuple[bytes, Headers]:
     if "location" in headers:
         headers["location"] = __replace(headers["location"])
     return content.encode("utf8"), headers
+
+
+@app.route('/echo', methods=["GET", "POST"])
+def echo():
+    origin = {
+        "url": request.url,
+        "method": request.method,
+        "headers": dict(request.headers),
+        "data": request.get_data().decode("utf8", errors="ignore"),
+        "form": dict(request.form),
+        "cookie": dict(request.cookies),
+        "remote": request.remote_addr,
+    }
+    json_ret = json.dumps(origin, indent=2)
+    print(json_ret)
+    return json_ret.encode("utf8"), {"Content-Type": "application/json"}
 
 
 if __name__ == '__main__':
