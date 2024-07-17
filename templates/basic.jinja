@@ -122,7 +122,7 @@ server {
     add_header                  FROM   nginx-stream;
     proxy_set_header            X-FROM {{ location.listen_host }};
     proxy_set_header            Host {{ location.proxy_host }};
-    set                         $dest_host "{{ location.host }}";
+    set $dest_host              "{{ location.host }}";
 {%- if location.https %}
 {% if location.client_tls_crt_valid and location.client_tls_key_valid %}
     proxy_ssl_certificate       /etc/nginx/certs/{{ location.client_tls }}-client.crt;
@@ -169,6 +169,9 @@ server {
     add_header 'Access-Control-Allow-Headers'     'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range';
     add_header 'Access-Control-Expose-Headers'    'Content-Length,Content-Range';
     # active cross_domain over
+{%- endif %}
+{%- if listen_config.config_location %}
+    include "{{ listen_config.config_location }}";
 {%- endif %}
   }
 {% endfor %}

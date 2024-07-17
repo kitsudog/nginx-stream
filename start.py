@@ -6,6 +6,7 @@ from typing import Dict
 from jinja2 import Environment, FileSystemLoader
 
 jinja2_env = Environment(loader=FileSystemLoader('templates'))
+CONFIG_DIR = os.environ.get("CONFIG_DIR", "/etc/nginx/conf.d")
 
 
 def init_env():
@@ -63,10 +64,12 @@ def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, 
                 each["client_tls"] = "nginx"
         else:
             each["client_tls"] = False
+        location_config = f"{CONFIG_DIR}/{each['listen_host']}_location"
         each.update(ChainMap(each, {
             "i": i,
             "listen_port": 81 if each.get("ex") else 80,
             "listen_host": "_",
+            "config_location": os.path.exists(location_config) and location_config,
             "server_dns": "",
             "tls_listen_port": 443,
             "tls": "nginx",
