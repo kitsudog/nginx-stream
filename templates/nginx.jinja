@@ -93,17 +93,17 @@ http {
       set           $full_url   "#ban-301#";
       return 301 "{{ default_geo_redirect  }}";
       {%- else %}
-      set           $full_url   "#ban-503#";
-      return 503;
+      set           $full_url   "#ban-403#";
+      return 403;
       {%- endif %}
     }
     {% endif %}
     location        / {
       {% if default_geo_white or default_geo_black -%}
       if ($default_user_type = ban) {
-        return 503;
+        return 403;
       }
-      error_page            503 = @custom;
+      error_page            403 = @custom;
       {% endif -%}
       add_header            FROM        nginx-stream;
       proxy_set_header      X-FROM      $http_host;
