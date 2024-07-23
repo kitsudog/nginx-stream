@@ -142,42 +142,7 @@ http {
   {% filter indent(2) %}{% include 'basic.jinja' %}{% endfilter %}
   # LISTEN END
   # REDIRECT START
-{%- for redirect_config in redirect_config_list %}
-{%- if redirect_config.mode == "normal" %}
-  server {
-    listen      {{ redirect_config.listen_port }};
-    server_name {{ redirect_config.host }};
-    location / {
-      set $full_url   "{{ redirect_config.url2 }}$request_uri";
-      set $dest_host  "#REDIRECT#";
-      return 302      "{{ redirect_config.url2 }}$request_uri";
-    }
-  }
-{%- elif redirect_config.mode == "no_uri" %}
-  server {
-    listen      {{ redirect_config.listen_port }};
-    server_name {{ redirect_config.host }};
-    location / {
-      set $full_url   "{{ redirect_config.url }}";
-      set $dest_host  "#REDIRECT-DOMAIN#";
-      return 302      "{{ redirect_config.url }}";
-    }
-  }
-{%- elif redirect_config.mode == "hash" %}
-  server {
-    listen      {{ redirect_config.listen_port }};
-    server_name {{ redirect_config.host }};
-    location / {
-      set           $full_url       "#REDIRECT-WITH-HASH#";
-      set           $dest_host      "#REDIRECT-WITH-HASH#";
-      add_header    Content-Type    text/html;
-      return 200 '<html lang="en"><head><title>redirect</title></head><body><script type="text/javascript">window.location.href="{{ redirect_config.url2 }}" + location.pathname + location.search + location.hash;</script></body></html>';
-    }
-  }
-{%- else %}
-  # no support {{ redirect_config.mode }}
-{%- endif %}
-{%- endfor %}
+  {% filter indent(2) %}{% include 'redirect.jinja' %}{% endfilter %}
   # REDIRECT END
 }
 {% include 'stream.jinja' %}

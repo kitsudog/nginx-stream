@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import os
-from collections import ChainMap
-from typing import Dict
+from collections import ChainMap, defaultdict
+from typing import Dict, List
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -18,6 +18,20 @@ def init_env():
 
 
 init_env()
+
+
+def merge_config(src: List[Dict], *, group_by_key: List[str], group_key: str = "location_list") -> List[Dict]:
+    tmp = defaultdict(lambda: [])
+    for each in src:
+        value = ":".join(map(lambda x: f"{x}={each[x]}", group_by_key))
+        tmp[value].append(each)
+    new = []
+    for k, v in tmp.items():
+        config = {group_key: v}
+        for each in group_by_key:
+            config[each] = v[0][each]
+        new.append(config)
+    return new
 
 
 # noinspection PyDefaultArgument
@@ -94,14 +108,6 @@ def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, 
         if listen_host not in tmp:
             tmp[listen_host] = []
         tmp[listen_host].append(dict(each))
-    for each in redirect_config_list:
-        if each["url"].endswith("/"):
-            url2, _, _ = each["url"].rpartition("/")
-        else:
-            url2 = each["url"]
-        each["url2"] = url2
-        if "mode" not in each:
-            each["mode"] = "normal"
     content = render("nginx.jinja", **kwargs)
     if os.environ.get("RECORD_PROXY") == "TRUE":
         content.replace('proxy_pass "${full_url}";', 'proxy_pass "http://localhost:81/${full_url}";')
@@ -155,15 +161,22 @@ def main():
         if not each:
             continue
         regex = re.compile(
-            r'(?P<host>.+)(:(?P<listen_port>\d+))?=(?P<url>.+)'
+            r'(?P<host>[^:/]+)(:(?P<listen_port>\d+))?(?P<location>/[^=]*)?=(?P<url>.+)'
         )
         config = next(regex.finditer(each)).groupdict()
         config['listen_port'] = int(config['listen_port'] or '80')
+        if config["url"].endswith("/"):
+            config["url2"], _, _ = config["url"].rpartition("/")
+        else:
+            config["url2"] = config["url"]
         params = filter(lambda kv: kv[0].startswith(f"{k}_"), os.environ.items())
         params = dict(
             map(lambda kv: (kv[0][len(k) + 1:].lower(), kv[1]), params)
         )
         config.update(params)
+        config['location'] = config.get('location') or '/'
+        config['mode'] = config.get('mode', 'normal')
+        config['keep_prefix'] = (config.get('keep_prefix') or 'false').lower() in ["true"]
         redirect_config.append(config)
 
     for k, each in list(filter(lambda kv: re.compile(r"BIND_\d+").match(kv[0]), os.environ.items())) + list(
@@ -249,7 +262,7 @@ def main():
 
     gen_nginx_config(
         listen_config_list=listen_config + forward_config,
-        redirect_config_list=redirect_config,
+        redirect_config_list=merge_config(redirect_config, group_by_key=["host", "listen_port"]),
         stream_config_list=bind_config,
         proxy_config_list=proxy_config,
         tunnel_config_list=tunnel_config,
