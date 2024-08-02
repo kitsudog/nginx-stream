@@ -1,10 +1,11 @@
 server {
-  server_name     _;
-  server_tokens   off;
-  listen          {{ proxy_listen_port }};
+  server_name         _;
+  server_tokens       off;
+  listen              {{ proxy_listen_port }};
 
   set $dest_host      $http_host;
   set $dest_proto     "https";
+  set $dest_ip        "0.0.0.0";
   set $full_url       "#";
 
   if ($cookie_dest ~ "^(https?)://([^/]*)/$") {
