@@ -45,11 +45,14 @@ def render(template, *, default: Dict = {}, **kwargs):
 
 
 # noinspection HttpUrlsUsage
-def gen_nginx_config(listen_config_list, stream_config_list, proxy_config_list, redirect_config_list,
-                     tunnel_config_list, listen_port=80,
-                     dns="8.8.8.8", config_file="/etc/nginx/nginx.conf", client_size="10m", external_host="$http_host",
-                     external_proto="http", proxy_listen_port=82, disable_proxy="FALSE", default_forward=False,
-                     default_geo_white="", default_geo_black="", default_ban_header="", default_geo_redirect=""):
+def gen_nginx_config(
+        listen_config_list, stream_config_list, proxy_config_list, redirect_config_list,
+        tunnel_config_list, listen_port=80,
+        dns="8.8.8.8", config_file="/etc/nginx/nginx.conf", client_size="10m", external_host="$http_host",
+        external_proto="http", proxy_listen_port=82, disable_proxy="FALSE", default_forward=False,
+        default_geo_white="", default_geo_black="", default_ban_header="", default_geo_redirect="",
+        tunnel_all_https=False,
+):
     disable_proxy = str(disable_proxy).lower() in {"true", "1"}
     kwargs = locals().copy()
     tmp = {}
@@ -121,9 +124,9 @@ def env_params(func):
     ret = {}
     for name, param in inspect.signature(func).parameters.items():
         if value := os.environ.get(name):
-            ret[name] = value
+            ret[name] = value == "TRUE" or value
         elif value := os.environ.get(name.upper()):
-            ret[name] = value
+            ret[name] = value == "TRUE" or value
     return ret
 
 
