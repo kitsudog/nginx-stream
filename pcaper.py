@@ -405,13 +405,14 @@ def main():
                     if mongo:
                         ret = mongo.insert_many(buffer)
                         print(f"parser [file={file}] mongo [submit={len(ret.inserted_ids)}]")
-
-
             except Exception:
                 traceback.print_exc()
             finally:
                 try:
-                    os.remove(file)
+                    if os.environ.get("NO_REMOVE") == "TRUE":
+                        pass
+                    else:
+                        os.remove(file)
                     if mongo:
                         mongo.delete_many({"timestamp": {"lt": int(datetime.now().timestamp() - 12 * 3600) * 1000}})
                 except Exception:

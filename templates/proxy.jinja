@@ -35,7 +35,7 @@ server {
       set $full_url   "${dest_proto}://${dest_ip}/${url}";
   }
 
-  if ($request_uri ~ "^/(https?)://([^/]*)/(.*)$") {
+  if ($request_uri ~ "^/(https)://([^/]*)/(.*)$") {
       set $dest_proto $1;
       set $dest_host  $2;
       set $url        $3;

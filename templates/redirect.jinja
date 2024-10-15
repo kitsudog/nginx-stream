@@ -32,7 +32,7 @@ server {
     {%- if redirect_config_location.location == "/" %}
     return 200 '<html lang="en"><head><title>redirect</title></head><body><script type="text/javascript">window.location.href="{{ redirect_config_location.url2 }}" + location.pathname + location.search + location.hash;</script></body></html>';
     {%- elif not redirect_config_location.keep_prefix %}
-    return 200 '<html lang="en"><head><title>redirect</title></head><body><script type="text/javascript">window.location.href="{{ redirect_config_location.url2 }}" + location.pathname.replace(/^\{{ redirect_config_location.location }}/, '/') + location.search + location.hash;</script></body></html>';
+    return 200 '<html lang="en"><head><title>redirect</title></head><body><script type="text/javascript">window.location.href="{{ redirect_config_location.url2 }}" + location.pathname.replace(/^\{{ redirect_config_location.location }}/, "/") + location.search + location.hash;</script></body></html>';
     {%-else %}
     return 200 '<html lang="en"><head><title>redirect</title></head><body><script type="text/javascript">window.location.href="{{ redirect_config_location.url2 }}" + location.pathname + location.search + location.hash;</script></body></html>';
     {%- endif %}

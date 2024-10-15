@@ -113,18 +113,19 @@ server {
 {% endif %}
 {% for location in listen_config.location_config_list %}
   location {{ listen_config.listen_path }} {
-    {% if listen_config.geo_white or listen_config.geo_black -%}
+{% if listen_config.geo_white or listen_config.geo_black -%}
     if ($user_type_{{ listen_config.i }} = ban) {
       return 403;
     }
     error_page                  403 = @custom;
-    {% endif -%}
+{% endif -%}
     add_header                  FROM   nginx-stream;
     proxy_set_header            X-FROM {{ location.listen_host }};
     proxy_set_header            Host {{ location.proxy_host }};
     set $dest_host              "{{ location.host }}";
 {%- if location.https %}
-{% if location.client_tls_crt_valid and location.client_tls_key_valid %}
+    proxy_set_header            X-Forwarded-Proto https;
+{% if location.client_tls_crt_valid and location.client_tls_key_valid -%}
     proxy_ssl_certificate       /etc/nginx/certs/{{ location.client_tls }}-client.crt;
     proxy_ssl_certificate_key   /etc/nginx/certs/{{ location.client_tls }}-client.key;
     set $full_url               "https://{{ location.host }}:{{ location.port }}{{ location.url }}";
@@ -135,7 +136,7 @@ server {
 {% endif %}
 {% else %}
     set $full_url               "http://{{ location.host }}:{{ location.port }}{{ location.url }}";
-    proxy_pass                  http://{{ location.host }}:{{ location.port }}{{ location.url }};
+    proxy_pass                  "http://{{ location.host }}:{{ location.port }}{{ location.url }}";
 {%- endif %}
 {%- if location.cache and location.cache.lower() == "true" %}
     # active cache start
