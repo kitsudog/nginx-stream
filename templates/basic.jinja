@@ -113,12 +113,16 @@ server {
 {% endif %}
 {% for location in listen_config.location_config_list %}
   location {{ listen_config.listen_path }} {
-{% if listen_config.geo_white or listen_config.geo_black -%}
+    {% if listen_config.jwt_ex %}
+    {% filter indent(2) %}{% include 'lua.jinja' %}{% endfilter %}
+    {% endif %}
+
+{% if listen_config.geo_white or listen_config.geo_black %}
     if ($user_type_{{ listen_config.i }} = ban) {
       return 403;
     }
     error_page                  403 = @custom;
-{% endif -%}
+{% endif %}
     add_header                  FROM   nginx-stream;
     proxy_set_header            X-FROM {{ location.listen_host }};
     proxy_set_header            Host {{ location.proxy_host }};

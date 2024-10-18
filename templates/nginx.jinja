@@ -46,20 +46,20 @@ http {
   }
   gzip_types text/plain text/css application/javascript application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript;
   # HTTP 1.1 support
-  proxy_http_version    1.1;
-  proxy_buffering       off;
-  proxy_set_header      Host $http_host;
-  proxy_set_header      Upgrade $http_upgrade;
-  proxy_set_header      Connection $proxy_connection;
-  proxy_set_header      X-Real-IP $remote_addr;
-  proxy_set_header      X-Forwarded-For $proxy_add_x_forwarded_for;
-  proxy_set_header      X-Forwarded-Proto $proxy_x_forwarded_proto;
-  proxy_set_header      X-Forwarded-Ssl $proxy_x_forwarded_ssl;
-  proxy_set_header      X-Forwarded-Port $proxy_x_forwarded_port;
-  proxy_set_header      Proxy "";
-  proxy_buffer_size        128k;
-  proxy_buffers            4 256k;
-  proxy_busy_buffers_size  256k;
+  proxy_http_version        1.1;
+  proxy_buffering           off;
+  proxy_set_header          Host $http_host;
+  proxy_set_header          Upgrade $http_upgrade;
+  proxy_set_header          Connection $proxy_connection;
+  proxy_set_header          X-Real-IP $remote_addr;
+  proxy_set_header          X-Forwarded-For $proxy_add_x_forwarded_for;
+  proxy_set_header          X-Forwarded-Proto $proxy_x_forwarded_proto;
+  proxy_set_header          X-Forwarded-Ssl $proxy_x_forwarded_ssl;
+  proxy_set_header          X-Forwarded-Port $proxy_x_forwarded_port;
+  proxy_set_header          Proxy "";
+  proxy_buffer_size         128k;
+  proxy_buffers             4 256k;
+  proxy_busy_buffers_size   256k;
 
   client_max_body_size      {{ client_size }};
   client_header_timeout     1m;
@@ -68,8 +68,12 @@ http {
   proxy_read_timeout        1m;
   proxy_send_timeout        1m;
 
+{#  lua_package_path "/usr/local/openresty/lualib/resty/redis.lua;";#}
+
 {% if default_forward %}
+  {# 只有默认转发才支持ip名单 #}
   {% if default_geo_white or default_geo_black %}
+
   # GEO START
   geo $http_x_forwarded_for $default_user_type {
     {{ "%-20s" % "default" }} ban;
@@ -133,6 +137,7 @@ http {
   }
   {% filter indent(2) %}{% include 'proxy.jinja' %}{% endfilter %}
 {% endif %}
+
   # UPSTREAM START
 {%- for listen_config in listen_config_list %}
   upstream LISTEN_{{ loop.index }} {
