@@ -1,4 +1,4 @@
-header_filter_by_lua_block {
+access_by_lua_block {
     local auth_str=ngx.var.http_authorization
     if not auth_str or not auth_str:find("Bearer ") == 1 then
         return
@@ -14,5 +14,5 @@ header_filter_by_lua_block {
     local b64 = require "ngx.base64"
     local payload_b64 = jwt_parts[2]
     local payload_json_str = b64.decode_base64url(payload_b64)
-    ngx.header["jwt-user"]=payload_json_str
+    ngx.req.set_header("jwt-user",payload_json_str)
 }
