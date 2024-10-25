@@ -30,5 +30,5 @@ curl "http://baidu.games:${TARGET_PORT}/123" --resolve "baidu.games:${TARGET}" -
 echo REDIRECT_2=mode2.baidu.games=https://www.baidu.com/
 curl "http://mode2.baidu.games:${TARGET_PORT}/123" --resolve "mode2.baidu.games:${TARGET}" -si|grep "Location: https://www.baidu.com/"
 echo REDIRECT_3=mode3.baidu.games=https://www.baidu.com/
-curl "http://mode3.baidu.games:${TARGET_PORT}/123?a=b#b=1" --resolve "mode3.baidu.games:${TARGET}" -si|grep 'window.location'
+curl "http://mode3.baidu.games:${TARGET_PORT}/test1?a=b#b=1" --resolve "mode3.baidu.games:${TARGET}" -si|grep 'window.location'
 echo succ

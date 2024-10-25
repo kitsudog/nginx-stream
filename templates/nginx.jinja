@@ -13,7 +13,7 @@ http {
   default_type          application/octet-stream;
   log_format    main    '$remote_addr $http_host $remote_user [$time_local] "$request" '
                         '$status $body_bytes_sent "$http_referer" '
-                        '"$http_user_agent" "$http_x_forwarded_for" [Proxy-pass=$upstream_addr @ $dest_host] $full_url';
+                        '"$http_user_agent" "$http_x_forwarded_for" [Proxy-pass=$upstream_addr @ $dest_host ${dest_port}] $full_url';
 
   proxy_cache_path      /var/cache/nginx use_temp_path=off keys_zone=default_cache:10m;
   access_log            /var/log/nginx/access.log  main;
