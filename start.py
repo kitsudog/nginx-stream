@@ -20,6 +20,33 @@ def init_env():
 init_env()
 
 
+# noinspection PyDefaultArgument
+def merge_config2(
+        src: List[Dict], *, group_by_key: List[str], group_key: str, ignore_key: List[str] = [],
+) -> List[
+    Dict]:
+    tmp = defaultdict(lambda: [])
+    for each in src:
+        value = ":".join(map(lambda x: f"{x}={each[x]}", group_by_key))
+        tmp[value].append(each)
+    new = []
+    for k, v in list(tmp.items()):
+        config = v[0].copy()
+        new_value = []
+        for each in v:
+            for _k, _v in each.items():
+                if _k == group_key or _k in ignore_key:
+                    continue
+                assert each[_k] == config[_k]
+            if group_key in each:
+                new_value.extend(each[group_key])
+            else:
+                new_value.append(each)
+        config[group_key] = new_value
+        new.append(config)
+    return new
+
+
 def merge_config(src: List[Dict], *, group_by_key: List[str], group_key: str = "location_list") -> List[Dict]:
     tmp = defaultdict(lambda: [])
     for each in src:
@@ -94,9 +121,6 @@ def gen_nginx_config(
             "tls_key_valid": os.path.exists(f"{CERT_DIR}/{each['tls']}.key"),
             "client_tls_crt_valid": os.path.exists(f"{CERT_DIR}/{each['client_tls']}-client.crt"),
             "client_tls_key_valid": os.path.exists(f"{CERT_DIR}/{each['client_tls']}-client.key"),
-            "gateway_config": {
-                "host": each["host"],
-            },
             "location_config_list": [
                 ChainMap(each, {
                     "listen_host": "_",
@@ -111,6 +135,22 @@ def gen_nginx_config(
         if listen_host not in tmp:
             tmp[listen_host] = []
         tmp[listen_host].append(dict(each))
+    new_config_list = merge_config2(
+        listen_config_list,  #
+        group_by_key=["listen_host"],  #
+        group_key="location_config_list",  #
+        ignore_key=["listen_path", "url", "i", "config"],  #
+    )
+    listen_config_list.clear()
+    listen_config_list.extend(new_config_list)
+    new_config_list = merge_config2(
+        redirect_config_list,  #
+        group_by_key=["host", "listen_port"],  #
+        group_key="location_list",  #
+        ignore_key=["location", "url", "url2", "mode", "keep_prefix"],  #
+    )
+    redirect_config_list.clear()
+    redirect_config_list.extend(new_config_list)
     content = render("nginx.jinja", **kwargs)
     if os.environ.get("RECORD_PROXY") == "TRUE":
         content.replace('proxy_pass "${full_url}";', 'proxy_pass "http://localhost:81/${full_url}";')
@@ -201,7 +241,7 @@ def main():
         r'(?P<https>https@)?'
         r'(?P<listen_host>[^:/]+)'
         r'(?P<listen_path>/[^:]+)?'
-        r':(?P<host>[^:/]+)(:(?P<port>\d+))?(?P<url>/[^@]+)?'
+        r':(?P<host>[^:/]+)(:(?P<port>\d+))?(?P<url>/[^@]*)?'
         r'(@(?P<proxy_host>.+))?'
     )
 
@@ -265,7 +305,7 @@ def main():
 
     gen_nginx_config(
         listen_config_list=listen_config + forward_config,
-        redirect_config_list=merge_config(redirect_config, group_by_key=["host", "listen_port"]),
+        redirect_config_list=redirect_config,
         stream_config_list=bind_config,
         proxy_config_list=proxy_config,
         tunnel_config_list=tunnel_config,

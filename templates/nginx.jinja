@@ -112,7 +112,7 @@ http {
       }
       error_page            403 = @custom;
       {% endif -%}
-      add_header            FROM        nginx-stream;
+      add_header            FROM        nginx-stream always;
       proxy_set_header      X-FROM      $http_host;
       proxy_set_header      Host        $http_host;
       set                   $dest_host  $http_host;
