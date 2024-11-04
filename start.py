@@ -21,7 +21,7 @@ init_env()
 
 
 # noinspection PyDefaultArgument
-def merge_config2(
+def merge_config(
         src: List[Dict], *, group_by_key: List[str], group_key: str, ignore_key: List[str] = [],
 ) -> List[
     Dict]:
@@ -37,26 +37,12 @@ def merge_config2(
             for _k, _v in each.items():
                 if _k == group_key or _k in ignore_key:
                     continue
-                assert each[_k] == config[_k]
+                assert each[_k] == config[_k], f"can't merge {_k}"
             if group_key in each:
                 new_value.extend(each[group_key])
             else:
                 new_value.append(each)
         config[group_key] = new_value
-        new.append(config)
-    return new
-
-
-def merge_config(src: List[Dict], *, group_by_key: List[str], group_key: str = "location_list") -> List[Dict]:
-    tmp = defaultdict(lambda: [])
-    for each in src:
-        value = ":".join(map(lambda x: f"{x}={each[x]}", group_by_key))
-        tmp[value].append(each)
-    new = []
-    for k, v in tmp.items():
-        config = {group_key: v}
-        for each in group_by_key:
-            config[each] = v[0][each]
         new.append(config)
     return new
 
@@ -135,15 +121,15 @@ def gen_nginx_config(
         if listen_host not in tmp:
             tmp[listen_host] = []
         tmp[listen_host].append(dict(each))
-    new_config_list = merge_config2(
+    new_config_list = merge_config(
         listen_config_list,  #
         group_by_key=["listen_host"],  #
         group_key="location_config_list",  #
-        ignore_key=["listen_path", "url", "i", "config"],  #
+        ignore_key=["listen_path", "url", "i", "config", "host", "port"],  #
     )
     listen_config_list.clear()
     listen_config_list.extend(new_config_list)
-    new_config_list = merge_config2(
+    new_config_list = merge_config(
         redirect_config_list,  #
         group_by_key=["host", "listen_port"],  #
         group_key="location_list",  #
