@@ -118,6 +118,9 @@ def forward_common(path):
         headers["HOST"] = headers["Host"]
     else:
         headers["HOST"] = UPSTREAM_HOST
+    if headers.get("Accept-Encoding"):
+        # fix: 可能引入莫名其妙的压缩格式
+        del headers['Accept-Encoding']
     proxy_by = "nginx-stream:ex:" + headers["HOST"]
     try:
         if request.method == "GET":
