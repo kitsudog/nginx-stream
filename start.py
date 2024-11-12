@@ -227,7 +227,7 @@ def main():
         r'(?P<https>https@)?'
         r'(?P<listen_host>[^:/]+)'
         r'(?P<listen_path>/[^:]*)?'
-        r':(?P<host>[^:/]+)(:(?P<port>\d+))?(?P<url>/[^@]*)?'
+        r':(?P<host>[^:@/]+)(:(?P<port>\d+))?(?P<url>/[^@]*)?'
         r'(@(?P<proxy_host>.+))?'
     )
 
