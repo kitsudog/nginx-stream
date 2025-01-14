@@ -35,4 +35,5 @@ fi
 if [ "${EX}" == "TRUE" ];then
     python3 /app/app.py &
 fi
+python3 tunel.py
 /docker-entrypoint.sh nginx -g "daemon off;"
