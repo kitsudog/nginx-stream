@@ -1,0 +1,161 @@
+user  nginx;
+worker_processes  auto;
+
+error_log  /var/log/nginx/error.log notice;
+pid        /var/run/nginx.pid;
+
+events {
+    worker_connections  10240;
+}
+http {
+  resolver              {{ dns }} valid=60s ipv6=off;
+  include               /etc/nginx/mime.types;
+  default_type          application/octet-stream;
+  log_format    main    '$remote_addr $http_host $remote_user [$time_local] "$request" '
+                        '$status $body_bytes_sent "$http_referer" '
+                        '"$http_user_agent" "$http_x_forwarded_for" [Proxy-pass=$upstream_addr @ $dest_host ${dest_port}] $full_url';
+
+  proxy_cache_path      /var/cache/nginx use_temp_path=off keys_zone=default_cache:10m;
+  access_log            /var/log/nginx/access.log  main;
+  sendfile              on;
+  #tcp_nopush           on;
+  charset               'utf-8';
+  keepalive_timeout     65;
+  # If we receive X-Forwarded-Proto, pass it through; otherwise, pass along the
+  # scheme used to connect to this server
+  map $http_x_forwarded_proto $proxy_x_forwarded_proto {
+    default $http_x_forwarded_proto;
+    ''      $scheme;
+  }
+  # If we receive X-Forwarded-Port, pass it through; otherwise, pass along the
+  # server port the client connected to
+  map $http_x_forwarded_port $proxy_x_forwarded_port {
+    default $http_x_forwarded_port;
+    ''      $server_port;
+  }
+  # If we receive Upgrade, set Connection to "upgrade"; otherwise, delete any
+  # Connection header that may have been passed to this server
+  map $http_upgrade $proxy_connection {
+    default upgrade;
+    '' close;
+  }
+  # Set appropriate X-Forwarded-Ssl header based on $proxy_x_forwarded_proto
+  map $proxy_x_forwarded_proto $proxy_x_forwarded_ssl {
+    default off;
+    https on;
+  }
+  gzip_types text/plain text/css application/javascript application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript;
+  # HTTP 1.1 support
+  proxy_http_version        1.1;
+  proxy_buffering           off;
+  proxy_set_header          Host $http_host;
+  proxy_set_header          Upgrade $http_upgrade;
+  proxy_set_header          Connection $proxy_connection;
+  proxy_set_header          X-Real-IP $remote_addr;
+  proxy_set_header          X-Forwarded-For $proxy_add_x_forwarded_for;
+  proxy_set_header          X-Forwarded-Proto $proxy_x_forwarded_proto;
+  proxy_set_header          X-Forwarded-Ssl $proxy_x_forwarded_ssl;
+  proxy_set_header          X-Forwarded-Port $proxy_x_forwarded_port;
+  proxy_set_header          Proxy "";
+  proxy_buffer_size         128k;
+  proxy_buffers             4 256k;
+  proxy_busy_buffers_size   256k;
+
+  client_max_body_size      {{ client_size }};
+  client_header_timeout     1m;
+  client_body_timeout       1m;
+  proxy_connect_timeout     60s;
+  proxy_read_timeout        1m;
+  proxy_send_timeout        1m;
+
+{#  lua_package_path "/usr/local/openresty/lualib/resty/redis.lua;";#}
+{% if default_forward %}
+  # DEFAULT_FORWARD: {{ default_forward }}
+  {# 只有默认转发才支持ip名单 #}
+  {% if default_geo_white or default_geo_black %}
+
+  # GEO START
+  geo $http_x_forwarded_for $default_user_type {
+    {{ "%-20s" % "default" }} ban;
+    {%- if default_geo_white -%}{%- for geo in default_geo_white.split(";") %}
+    {{ "%-20s" % geo }} white;
+    {%- endfor %}{%- endif -%}
+    {% if default_geo_black %}{%- for geo in default_geo_black.split(";") %}
+    {{ "%-20s" % geo }} ban;
+    {%- endfor %}{% endif %}
+  }
+  # GEO END
+  {% endif %}
+  server {
+    listen          80;
+    server_name     _;
+    access_log      /var/log/nginx/access.log  main;
+    {% if default_geo_white or default_geo_black %}
+    location @custom {
+      {%- if default_ban_header %}{%- for header in default_ban_header.split(";") %}
+      add_header    {{ "%-11s" % header.partition("=")[0] }} "{{ header.partition("=")[-1] }}" always;
+      {%- endfor %}{%- endif %}
+      set           $dest_host  $http_host;
+      {%- if default_geo_redirect %}
+      set           $full_url   "#ban-301#";
+      return 301 "{{ default_geo_redirect  }}";
+      {%- else %}
+      set           $full_url   "#ban-403#";
+      return 403;
+      {%- endif %}
+    }
+    {% endif %}
+    location        / {
+      {% if default_jwt_ex %}
+      # DEFAULT_JWT_EX: {{ default_jwt_ex }}
+      {% filter indent(6) %}{% include 'lua.jinja' %}{% endfilter %}
+      {% endif %}
+      {% if default_geo_white or default_geo_black -%}
+      if ($default_user_type = ban) {
+        return 403;
+      }
+      error_page            403 = @custom;
+      {% endif -%}
+      add_header            FROM        nginx-stream always;
+      proxy_set_header      X-FROM      $http_host;
+      proxy_set_header      Host        $http_host;
+      set                   $dest_host  $http_host;
+      set                   $dest_port  80;
+      set                   $full_url   "{{ default_forward }}";
+      proxy_pass            "{{ default_forward }}";
+      proxy_redirect        default;
+      proxy_ssl_server_name on;
+      proxy_ssl_name        $http_host;
+      proxy_set_header      Upgrade     $http_upgrade;
+      proxy_set_header      Connection  $proxy_connection;
+    }
+  }
+{% else %}
+  server {
+    listen         80;
+    server_name    _;
+    access_log     off;
+    location / {
+      proxy_pass http://127.0.0.1:{{ proxy_listen_port }};
+      proxy_redirect http://internal {{ external_proto }}://{{ external_host }};
+    }
+  }
+  {% filter indent(2) %}{% include 'proxy.jinja' %}{% endfilter %}
+{% endif %}
+
+  # UPSTREAM START
+{%- for listen_config in listen_config_list %}
+  upstream LISTEN_{{ loop.index }} {
+    # for {{ listen_config.config }}
+    server {{ listen_config.host }}:{{ listen_config.port }};
+  }
+{% endfor %}
+  # UPSTREAM END
+  # LISTEN START
+  {% filter indent(2) %}{% include 'basic.jinja' %}{% endfilter %}
+  # LISTEN END
+  # REDIRECT START
+  {% filter indent(2) %}{% include 'redirect.jinja' %}{% endfilter %}
+  # REDIRECT END
+}
+{% include 'stream.jinja' %}

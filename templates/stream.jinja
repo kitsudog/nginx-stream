@@ -1,0 +1,48 @@
+stream {
+  log_format proxy          '$remote_addr [$time_local] '
+                            '$protocol $status $bytes_sent $bytes_received '
+                            '$session_time -> $upstream_addr '
+                            '$upstream_bytes_sent $upstream_bytes_received $upstream_connect_time';
+  access_log                /dev/stdout proxy buffer=32k;
+  open_log_file_cache       off;
+  resolver                  {{ dns }} valid=60s ipv6=off;
+{% if tunnel_config_list %}
+  # HTTPS TUNNEL START
+  map $ssl_preread_server_name $backend_name {
+{%- for stream in tunnel_config_list %}
+    {{ stream.host }} tunnel_{{ stream.id }};
+{%- endfor %}
+  }
+{% for stream in tunnel_config_list %}
+  upstream tunnel_{{ stream.id }} {
+    server {{ stream.host }}:{{ stream.listen_port }};
+  }
+{% endfor %}
+  server {
+    listen      443;
+    proxy_pass  $backend_name;
+    ssl_preread on;
+  }
+  # HTTPS TUNNEL END
+{% elif tunnel_all_https %}
+  server {
+    listen      443;
+    proxy_pass  $ssl_preread_server_name:443;
+    ssl_preread on;
+  }
+{% endif %}
+  # STREAM START
+{%- for stream in stream_config_list %}
+  server {
+{%- if stream.udp %}
+    listen                  {{ stream.listen_port }} udp;
+{%- else %}
+    listen                  {{ stream.listen_port }};
+{%- endif %}
+    proxy_connect_timeout   {{ stream.connect_timeout | default(3) }}s;
+    proxy_timeout           {{ stream.timeout | default(10) }}s;
+    proxy_pass              {{ stream.host }}:{{ stream.port }};
+  }
+{% endfor -%}
+  # STREAM END
+}

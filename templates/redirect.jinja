@@ -1,0 +1,45 @@
+{%- for redirect_config in redirect_config_list %}
+server {
+  listen      {{ redirect_config.listen_port }};
+  server_name {{ redirect_config.host }};
+  {%- for redirect_config_location in redirect_config.location_list %}
+  {%- if redirect_config_location.mode == "normal" %}
+  location {{ redirect_config_location.location }} {
+    {%- if redirect_config_location.location == "/" %}
+    set $full_url   "{{ redirect_config_location.url2 }}$request_uri";
+    set $dest_host  "#REDIRECT#";
+    return 302      "{{ redirect_config_location.url2 }}$request_uri";
+    {%- elif not redirect_config_location.keep_prefix %}
+    rewrite ^{{ redirect_config_location.location }}(.*)$ {{ redirect_config_location.url2 }}/$1 break;
+    {% else %}
+    set $full_url   "{{ redirect_config_location.url2 }}$request_uri";
+    set $dest_host  "#REDIRECT#";
+    return 302      "{{ redirect_config_location.url2 }}$request_uri";
+    {%- endif %}
+
+  }
+  {%- elif redirect_config_location.mode == "no_uri" %}
+  location {{ redirect_config_location.location }} {
+    set $full_url   "{{ redirect_config_location.url }}";
+    set $dest_host  "#REDIRECT-DOMAIN#";
+    return 302      "{{ redirect_config_location.url }}";
+  }
+  {%- elif redirect_config_location.mode == "hash" %}
+  location {{ redirect_config_location.location }} {
+    add_header    Content-Type    text/html;
+    set           $full_url       "#REDIRECT-WITH-HASH#";
+    set           $dest_host      "#REDIRECT-WITH-HASH#";
+    {%- if redirect_config_location.location == "/" %}
+    return 200 '<html lang="en"><head><title>redirect</title></head><body><script type="text/javascript">window.location.href="{{ redirect_config_location.url2 }}" + location.pathname + location.search + location.hash;</script></body></html>';
+    {%- elif not redirect_config_location.keep_prefix %}
+    return 200 '<html lang="en"><head><title>redirect</title></head><body><script type="text/javascript">window.location.href="{{ redirect_config_location.url2 }}" + location.pathname.replace(/^\{{ redirect_config_location.location }}/, "/") + location.search + location.hash;</script></body></html>';
+    {%-else %}
+    return 200 '<html lang="en"><head><title>redirect</title></head><body><script type="text/javascript">window.location.href="{{ redirect_config_location.url2 }}" + location.pathname + location.search + location.hash;</script></body></html>';
+    {%- endif %}
+  }
+  {%- else %}
+  # no support {{ redirect_config_location.mode }}
+  {% endif %}
+  {%- endfor %}
+}
+{%- endfor %}

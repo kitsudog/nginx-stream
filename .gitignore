@@ -1,0 +1,7 @@
+docker-compose.yaml
+/venv
+.vscode/settings.json
+__pycache__
+/pcap
+*.pc
+/certs
