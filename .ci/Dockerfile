@@ -12,6 +12,7 @@ ENV TCPDUMP_DURATION=60 \
     UPSTREAM_HOST=127.0.0.1 \
     TZ=Asia/Shanghai
 COPY *.sh *.py /app/
+COPY html/ /var/www/html/
 COPY templates/ /app/templates/
 COPY certs/ /etc/nginx/certs/
 #VOLUME /var/cache/nginx

@@ -23,8 +23,7 @@ init_env()
 # noinspection PyDefaultArgument
 def merge_config(
         src: List[Dict], *, group_by_key: List[str], group_key: str, ignore_key: List[str] = [],
-) -> List[
-    Dict]:
+) -> List[Dict]:
     tmp = defaultdict(lambda: [])
     for each in src:
         value = ":".join(map(lambda x: f"{x}={each[x]}", group_by_key))
@@ -63,7 +62,7 @@ def gen_nginx_config(
         tunnel_config_list, listen_port=80,
         dns="8.8.8.8", config_file="/etc/nginx/nginx.conf", client_size="10m", external_host="$http_host",
         external_proto="http", proxy_listen_port=82, disable_proxy="FALSE", default_forward=False, default_jwt_ex=False,
-        default_geo_white="", default_geo_black="", default_ban_header="", default_geo_redirect="",
+        default_geo_white="", default_geo_black="", default_ban_header="", default_geo_redirect="", default_geo_html="",
         tunnel_all_https=False,
 ):
     disable_proxy = str(disable_proxy).lower() in {"true", "1"}

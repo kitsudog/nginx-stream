@@ -54,6 +54,7 @@ geo $http_x_forwarded_for $user_type_{{ listen_config.i }} {
 {% endif -%}
 server {
   server_name {{ listen_config.listen_host }};
+  set             $dest_port  0;
 {% if not listen_config.ex %}
 {% if listen_config.tls == False %}
   # no tls
@@ -98,8 +99,11 @@ server {
     {%- endfor %}{%- endif %}
     set             $dest_host  $http_host;
     {%- if listen_config.geo_redirect %}
-    set             $full_url   "#ban-301#";
-    return 301 "{{ listen_config.geo_redirect  }}";
+    set             $full_url   "#ban-302#";
+    return          302         "{{ listen_config.geo_redirect  }}";
+    {%- elif listen_config.geo_html %}
+    set             $full_url   "#ban-html#";
+    return          403         {{ listen_config.geo_html }};
     {%- else %}
     set             $full_url   "#ban-403#";
     return 403;
