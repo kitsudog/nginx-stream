@@ -120,6 +120,7 @@ server {
     {% if location.jwt_ex %}
     {% filter indent(2) %}{% include 'lua.jinja' %}{% endfilter %}
     {% endif %}
+    {% include 'lua-body.jinja' %}
 
 {% if location.geo_white or location.geo_black %}
     if ($user_type_{{ location.i }} = ban) {
@@ -149,12 +150,13 @@ server {
 {%- if location.cache and location.cache.lower() == "true" %}
     # active cache start
     proxy_buffering         on;
-    proxy_cache             default_cache;
-    proxy_cache_key         {{ location.cache_key | default('$scheme$proxy_host$request_uri') }};
-    proxy_cache_valid       200 {{ location.cache_expire | default('30d') }};
-    proxy_cache_valid       404 1m;
+    proxy_cache_methods     GET HEAD;
+    proxy_cache             {{ location.cache_type | default('cache_1min') }};
+    proxy_cache_key         {{ location.cache_key | default('$scheme$request_method$host$request_uri') }};
+    proxy_cache_valid       200 {{ location.cache_expire | default('1m') }};
+    proxy_cache_valid       404 502 503 504 1m;
 {%- if location.cache_force and location.cache_force.lower() == "true" %}
-    proxy_ignore_headers    Set-Cookie;
+    proxy_ignore_headers    Set-Cookie X-Accel-Expires Expires Cache-Control;
 {%- endif %}
     add_header              X-Proxy-Cache   $upstream_cache_status always;
     # active cache end
