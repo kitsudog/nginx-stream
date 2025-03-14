@@ -63,3 +63,14 @@ for key, value in os.environ.items():
     else:
         print(f"error config {key}={value}")
         exit(1)
+
+expr = re.compile(
+    r'((?P<SSH_USER>[^@:]+)@)?(?P<SSH_PORT>\d+)'
+    r'->'
+    r'((?P<SSH_LOCAL_HOST>[^:]+):)?(?P<SSH_LOCAL_PORT>\d+)'
+)
+for key, value in os.environ.items():
+    if not re.fullmatch(r'SSHD_\d+', key):
+        continue
+    with open(f"/etc/sshd_config.{key}") as fout:
+        pass

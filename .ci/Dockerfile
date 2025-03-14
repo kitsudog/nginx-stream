@@ -1,6 +1,6 @@
 #FROM kitsudo/nginx-python3:3.10
 FROM kitsudo/openresty-python3:3.10
-RUN apk upgrade --update-cache -a && apk add --no-cache tcpdump curl autossh dumb-init && rm -rf /tmp/* /root/.cache
+RUN apk upgrade --update-cache -a && apk add --no-cache tcpdump curl autossh dumb-init net-tools procps openssh && rm -rf /tmp/* /root/.cache
 COPY requirements.txt /app/requirements.txt
 RUN pip install -r /app/requirements.txt && rm -rf /root/.cache/pip
 ENV TCPDUMP_DURATION=60 \
@@ -15,6 +15,7 @@ COPY *.sh *.py /app/
 COPY html/ /var/www/html/
 COPY templates/ /app/templates/
 COPY certs/ /etc/nginx/certs/
+VOLUME /app/keys
 #VOLUME /var/cache/nginx
 WORKDIR /app
 ENTRYPOINT ["/app/start.sh"]

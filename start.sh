@@ -35,5 +35,8 @@ fi
 if [ "${EX}" == "TRUE" ];then
     python3 /app/app.py &
 fi
-python3 tunel.py
+python3 tunnel.py
+mkdir config
+usermod -p '' root
+python3 tunneld.py
 /docker-entrypoint.sh nginx -g "daemon off;"

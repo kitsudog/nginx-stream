@@ -5,3 +5,5 @@ __pycache__
 /pcap
 *.pc
 /certs
+/config
+/keys
