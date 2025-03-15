@@ -22,7 +22,7 @@ http {
                         '[$time_local] $request_method [[$request_uri]] $status $body_bytes_sent "$http_referer" '
                         '"$http_user_agent" "$http_x_forwarded_for" '
                         '[Proxy-pass=$upstream_addr @ $dest_host ${dest_port}] $full_url [cache=$upstream_cache_status] '
-                        '[tag=$request_tag] [$request_body_data]';
+                        '[tag=$request_tag]';
 
   proxy_cache_path      /var/cache/nginx1m levels=1:2      keys_zone=cache_1min:10m    max_size=100m;
   proxy_cache_path      /var/cache/nginx5m levels=1:2      keys_zone=cache_5min:100m   max_size=500m;

@@ -49,13 +49,14 @@ for key, value in os.environ.items():
             SSH_TARGET_HOST = SSH_LOCAL_HOST
             SSH_TARGET_PORT = SSH_LOCAL_PORT
         cmd = (
-            "autossh -M 0 -f -N "
-            "-o StrictHostKeyChecking=no "
-            "-o CheckHostIP=no "
-            "-o ServerAliveInterval=10 "
-            "-o ServerAliveCountMax=3 "
-            "-o ExitOnForwardFailure=yes "
-            f"-t -t {SSH_USER}@{SSH_HOST} -p {SSH_PORT} -i {SSH_KEY} -{SSH_MODE} {SSH_BIND_IP}:{SSH_TUNNEL_PORT}:{SSH_TARGET_HOST}:{SSH_TARGET_PORT}"
+            f"AUTOSSH_LOGFILE=/var/log/nginx/{key}.log"
+            " autossh -M 0 -f -N"
+            " -o StrictHostKeyChecking=no"
+            " -o CheckHostIP=no"
+            " -o ServerAliveInterval=10"
+            " -o ServerAliveCountMax=3"
+            " -o ExitOnForwardFailure=yes"
+            f" -t -t {SSH_USER}@{SSH_HOST} -p {SSH_PORT} -i {SSH_KEY} -{SSH_MODE} {SSH_BIND_IP}:{SSH_TUNNEL_PORT}:{SSH_TARGET_HOST}:{SSH_TARGET_PORT}"
         )
         print(cmd)
         os.system(cmd)
@@ -63,14 +64,3 @@ for key, value in os.environ.items():
     else:
         print(f"error config {key}={value}")
         exit(1)
-
-expr = re.compile(
-    r'((?P<SSH_USER>[^@:]+)@)?(?P<SSH_PORT>\d+)'
-    r'->'
-    r'((?P<SSH_LOCAL_HOST>[^:]+):)?(?P<SSH_LOCAL_PORT>\d+)'
-)
-for key, value in os.environ.items():
-    if not re.fullmatch(r'SSHD_\d+', key):
-        continue
-    with open(f"/etc/sshd_config.{key}") as fout:
-        pass

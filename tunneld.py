@@ -2,19 +2,32 @@ import os
 import re
 from collections import ChainMap
 
-# SSHD_1=root@192.168.100.195:22|127.0.0.1:80<-127.0.0.1:38080
-# SSHD_2=192.168.100.195|80<-38081
-# SSHD_3=192.168.100.195|38080->8080
+
+def init_env():
+    if os.path.exists(".env"):
+        with open(".env") as fin:
+            for each in fin.read().splitlines(keepends=False):
+                k, _, v = each.strip().partition("=")
+                os.environ[k] = v
+
+
+init_env()
+# SSHD_1=root@:10022|:1022->api.openai.com
 expr = re.compile(
-    r'((?P<SSH_USER>[^@:]+)@)?(?P<SSH_PORT>\d+)'
-    r'(->((?P<SSH_LOCAL_HOST>[^:]+):)?(?P<SSH_LOCAL_PORT>\d+))?'
+    r'((?P<SSH_USER>[^@:|]+)@)?(:(?P<SSH_PORT>\d+))'
+    '\|'
+    '(:(?P<SSH_LOCAL_PORT>\d+))'
+    '->(?P<SSH_REMOTE_HOST>[^:@|]+)(:(?P<SSH_REMOTE_PORT>\d+))?'
 )
-os.makedirs("keys", exist_ok=True)
+KEYS_PATH = os.environ.get("KEYS_PATH", "/keys")
+os.makedirs(KEYS_PATH, exist_ok=True)
 for each in {"rsa", "ecdsa", "ed25519"}:
-    key_file = f"keys/ssh_host_{each}_key"
+    key_file = f"{KEYS_PATH}/ssh_host_{each}_key"
     if not os.path.exists(key_file):
         os.system(f"ssh-keygen -t {each} -N '' -f {key_file}")
 
+bind_config = os.environ.get("BIND", "").split(";")
+bind_config.remove("")
 for key, value in os.environ.items():
     if not re.fullmatch(r'SSHD_\d+', key):
         continue
@@ -24,32 +37,53 @@ for key, value in os.environ.items():
             "SSH_PORT": 22,
             "SSH_LOCAL_HOST": "127.0.0.1",
             "SSH_LOCAL_PORT": 80,
+            "SSH_REMOTE_HOST": "127.0.0.1",
+            "SSH_REMOTE_PORT": 80,
         }))
-        print(f"check "
-              f"{key}={group['SSH_USER']}@{group['SSH_PORT']}->{group['SSH_LOCAL_HOST']}:{group['SSH_LOCAL_PORT']}"
-              )
+        print(
+            f"check "
+            f"{key}={group['SSH_USER']}@{group['SSH_PORT']}"
+        )
         SSHD_KEY = os.environ.get(f"{key}_KEY") or os.environ.get(f"SSHD_KEY") or "/authorized_keys"
-        with open(f"config/sshd_config.{key}", mode="w") as fout:
+        CONFIG_FILE = f"config/sshd_config.{key}"
+        with open(CONFIG_FILE, mode="w") as fout:
             fout.write(f"""\
+# https://man.openbsd.org/sshd_config
 Port {group["SSH_PORT"]}
-HostKey keys/ssh_host_rsa_key
-HostKey keys/ssh_host_ecdsa_key
-HostKey keys/ssh_host_ed25519_key
+HostKey {KEYS_PATH}/ssh_host_rsa_key
+HostKey {KEYS_PATH}/ssh_host_ecdsa_key
+HostKey {KEYS_PATH}/ssh_host_ed25519_key
 PermitRootLogin yes
+GatewayPorts no
 PasswordAuthentication no
 AuthorizedKeysFile {SSHD_KEY}
+AllowTcpForwarding local
+AllowStreamLocalForwarding no
+PermitOpen 127.0.0.1:{group['SSH_LOCAL_PORT']}
+# PermitListen 127.0.0.1:80
+# LogLevel DEBUG3
+PrintLastLog yes
+PrintMotd yes
 
 Match User {group["SSH_USER"]}
     X11Forwarding no
     # AllowTcpForwarding yes
     PermitTTY no
-    ForceCommand sh -c "netstat -antp|grep LISTEN|grep sshd -v|grep {group["SSH_LOCAL_HOST"]}:{group["SSH_LOCAL_PORT"]} && tail -f || echo Error: No valid listening configuration found"
-
+    # lsof -nPp $(ps -o ppid= -p $$)|grep TCP|grep LISTEN
+    # ForceCommand sh -c "netstat -atnp|grep LISTEN" && tail -f || echo Error: No valid listening configuration found"
 """)
         cmd = (
-            "/usr/sbin/sshd "
-            "-e "
-            f"-f config/sshd_config.{key} "
+            "/usr/sbin/sshd"
+            f" -f '{CONFIG_FILE}'"
+            f" -E '/var/log/nginx/{key}.log'"
         )
         print(f"exec {cmd}")
-        os.system(cmd)
+        if os.system(f"{cmd}"):
+            exit(1)
+        bind_config.append(f"{group['SSH_LOCAL_PORT']}:{group['SSH_REMOTE_HOST']}:{group['SSH_REMOTE_PORT']}")
+    else:
+        print(f"error config [{key}={value}]")
+        exit(1)
+if bind_config:
+    with open("tunnel.env", mode="w") as fout:
+        fout.write(f"BIND={';'.join(bind_config)}")

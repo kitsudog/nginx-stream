@@ -10,11 +10,12 @@ CONFIG_DIR = os.environ.get("CONFIG_DIR", "/etc/nginx/conf.d")
 
 
 def init_env():
-    if os.path.exists(".env"):
-        with open(".env") as fin:
-            for each in fin.read().splitlines(keepends=False):
-                k, _, v = each.strip().partition("=")
-                os.environ[k] = v
+    for file in os.listdir("."):
+        if file.endswith(".env"):
+            with open(file) as fin:
+                for each in fin.read().splitlines(keepends=False):
+                    k, _, v = each.strip().partition("=")
+                    os.environ[k] = v
 
 
 init_env()

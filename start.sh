@@ -1,9 +1,20 @@
 #!/bin/sh
+set -e
+cd /app
 export LOCAL_DNS=$(cat /etc/resolv.conf | grep nameserver|awk '{print $2}')
 if [ -z "$DNS" ];then
     export DNS=$LOCAL_DNS
 fi
-python3 /app/start.py || exit 1
+mkdir config -p
+usermod -p '' root
+# prepare log to stdout
+env|grep '^SSHD\?_[0-9]*=' -o|while read line
+do
+  FILE=$(echo $line|sed 's#=##')
+  ln -s /dev/stderr /var/log/nginx/${FILE}.log
+done
+python3 tunneld.py
+python3 /app/start.py
 cat ${CONFIG_FILE:-/etc/nginx/nginx.conf}|awk '{print NR"\t"$0}'
 echo start task
 if [ "${RELOAD:-FALSE}" = "TRUE" ];then
@@ -36,7 +47,4 @@ if [ "${EX}" == "TRUE" ];then
     python3 /app/app.py &
 fi
 python3 tunnel.py
-mkdir config
-usermod -p '' root
-python3 tunneld.py
 /docker-entrypoint.sh nginx -g "daemon off;"
