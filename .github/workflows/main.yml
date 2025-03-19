@@ -9,6 +9,7 @@ on:
       - main
     tags:
       - 'v*'
+  workflow_dispatch:  # 添加这行来支持手动触发
 
 jobs:
   build-and-push:
