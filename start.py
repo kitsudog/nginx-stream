@@ -272,7 +272,12 @@ def main():
         if not each:
             continue
         print("forward:", each)
-        forward_config.append(get_listen_config(each, forward=True))
+        _params = list(filter(lambda kv: kv[0].startswith(f"{k}_"), os.environ.items()))
+        params = dict(
+            map(lambda kv: (kv[0][len(k) + 1:].lower(), kv[1]), _params)
+        )
+        params["ex"] = str(params.get("ex", "false")).lower() == "true"
+        forward_config.append(get_listen_config(each, forward=True, **params))
 
     # noinspection PyTypeChecker
     for k, each in list(filter(
