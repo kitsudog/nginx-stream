@@ -1,5 +1,4 @@
 #!/bin/sh
-set -e
 cd /app
 export LOCAL_DNS=$(cat /etc/resolv.conf | grep nameserver|awk '{print $2}')
 if [ -z "$DNS" ];then
@@ -11,8 +10,9 @@ usermod -p '' root
 env|grep '^SSHD\?_[0-9]*=' -o|while read line
 do
   FILE=$(echo $line|sed 's#=##')
-  ln -s /dev/stderr /var/log/nginx/${FILE}.log
+  test -e /var/log/nginx/${FILE}.log || ln -s /dev/stderr /var/log/nginx/${FILE}.log
 done
+set -e
 python3 tunneld.py
 python3 /app/start.py
 cat ${CONFIG_FILE:-/etc/nginx/nginx.conf}|awk '{print NR"\t"$0}'
