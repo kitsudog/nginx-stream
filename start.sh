@@ -13,7 +13,7 @@ do
   test -e /var/log/nginx/${FILE}.log || ln -s /dev/stderr /var/log/nginx/${FILE}.log
 done
 set -e
-python3 tunneld.py
+LOG_PATH=/var/log/nginx python3 tunneld.py
 python3 /app/start.py
 cat ${CONFIG_FILE:-/etc/nginx/nginx.conf}|awk '{print NR"\t"$0}'
 echo start task
