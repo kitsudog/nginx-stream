@@ -81,29 +81,33 @@ HostKey {KEYS_PATH}/ssh_host_ed25519_key
 PermitRootLogin yes
 GatewayPorts {"no" if group["SSH_MODE"] == "local" else "yes"}
 PasswordAuthentication no
-AuthorizedKeysFile {SSHD_KEY}
+AuthorizedKeysFile {SSHD_KEY} {KEYS_PATH}/%u
 AllowTcpForwarding {group["SSH_MODE"]}
 AllowStreamLocalForwarding no
 PermitOpen {group['SSH_LOCAL_HOST']}:{group['SSH_LOCAL_PORT']}
 PermitListen 127.0.0.1:{group['SSH_LOCAL_PORT']}
 # LogLevel DEBUG3
-PrintLastLog yes
+LogLevel DEBUG1
+# PrintLastLog yes
 PrintMotd yes
+X11Forwarding no
+PermitTTY no
+ForceCommand tail -f
 
 Match User {group["SSH_USER"]}
-    X11Forwarding no
     # AllowTcpForwarding yes
-    PermitTTY no
+    # ForceCommand tail -f
     # lsof -nPp $(ps -o ppid= -p $$)|grep TCP|grep LISTEN
     # ForceCommand sh -c "netstat -atnp|grep LISTEN" && tail -f || echo Error: No valid listening configuration found"
 """)
         cmd = (
             "/usr/sbin/sshd"
             f" -f '{CONFIG_FILE}'"
-            f" -E '{os.environ.get('LOG_PATH', 'config')}/{key}.log'"
+            #f" -E '{os.environ.get('LOG_PATH', 'config')}/{key}.log'"
+            f" -D -e 2>&1 |PYTHONUNBUFFERED=1 python3 time_prefix.py >> {os.environ.get('LOG_PATH', 'config')}/{key}.log &"
         )
         print(f"exec {cmd}")
-        if os.system(f"{cmd}"):
+        if os.system(f'sh -c "{cmd}"'):
             exit(1)
         if group["SSH_MODE"] == "local":
             bind_config.append(f"{group['SSH_LOCAL_PORT']}:{group['SSH_REMOTE_HOST']}:{group['SSH_REMOTE_PORT']}")

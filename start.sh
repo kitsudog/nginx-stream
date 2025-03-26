@@ -7,11 +7,14 @@ fi
 mkdir config -p
 usermod -p '' root
 # prepare log to stdout
-env|grep '^SSHD\?_[0-9]*=' -o|while read line
-do
-  FILE=$(echo $line|sed 's#=##')
-  test -e /var/log/nginx/${FILE}.log || ln -s /dev/stderr /var/log/nginx/${FILE}.log
-done
+if [ $(readlink /var/log/nginx/access.log) = "/dev/stdout" ]
+then
+  env|grep '^SSHD\?_[0-9]*=' -o|while read line
+  do
+    FILE=$(echo $line|sed 's#=##')
+    test -e /var/log/nginx/${FILE}.log || ln -s /dev/stderr /var/log/nginx/${FILE}.log
+  done
+fi
 set -e
 LOG_PATH=/var/log/nginx python3 tunneld.py
 python3 /app/start.py
