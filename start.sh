@@ -32,7 +32,7 @@ if [ "$(env|grep ECHO)" ]; then
     export EX=TRUE
 fi
 if [ -n "${REPLACE}" ] || [ -n "${REPLACE_PATTERN}" ]; then
-    export UPSTREAM_FILTER="replace"
+    export UPSTREAM_FILTER="replace,${UPSTREAM_FILTER}"
     export EX=TRUE
 fi
 if [ "${RECORD}" = "TRUE" ];then
