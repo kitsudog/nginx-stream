@@ -24,9 +24,10 @@ http {
                         '[Proxy-pass=$upstream_addr @ $dest_host:$dest_port] $full_url [cache=$upstream_cache_status] '
                         '[tag=$request_tag]';
 
-  proxy_cache_path      /var/cache/nginx1m levels=1:2      keys_zone=cache_1min:10m    max_size=100m;
-  proxy_cache_path      /var/cache/nginx5m levels=1:2      keys_zone=cache_5min:100m   max_size=500m;
-  proxy_cache_path      /var/cache/nginx1d levels=1:2      keys_zone=cache_1d:1000m    max_size=2000m;
+  proxy_cache_path      /var/cache/nginx1m  levels=1:2      keys_zone=cache_1min:10m    max_size=100m;
+  proxy_cache_path      /var/cache/nginx5m  levels=1:2      keys_zone=cache_5min:100m   max_size=500m;
+  proxy_cache_path      /var/cache/nginx1d  levels=1:2      keys_zone=cache_1d:1000m    max_size=2000m;
+  proxy_cache_path      /var/cache/nginx30d levels=1:2      keys_zone=cache_30d:1000m   max_size=2000m;
 
   access_log            /var/log/nginx/access.log  main;
   sendfile              on;
@@ -67,10 +68,10 @@ http {
   proxy_set_header          Upgrade $http_upgrade;
   proxy_set_header          Connection $proxy_connection;
   proxy_set_header          X-Real-IP $remote_addr;
-  proxy_set_header          X-Forwarded-For $proxy_add_x_forwarded_for;
-  proxy_set_header          X-Forwarded-Proto $proxy_x_forwarded_proto;
-  proxy_set_header          X-Forwarded-Ssl $proxy_x_forwarded_ssl;
-  proxy_set_header          X-Forwarded-Port $proxy_x_forwarded_port;
+  proxy_set_header          X-Forwarded-For                 $proxy_add_x_forwarded_for;
+  proxy_set_header          X-Forwarded-Proto               $proxy_x_forwarded_proto;
+  proxy_set_header          X-Forwarded-Ssl                 $proxy_x_forwarded_ssl;
+  proxy_set_header          X-Forwarded-Port                $proxy_x_forwarded_port;
   proxy_set_header          Proxy "";
   proxy_buffer_size         128k;
   proxy_buffers             4 256k;

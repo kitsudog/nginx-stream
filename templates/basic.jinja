@@ -4,6 +4,7 @@
 # EX GATEWAY START
 server {
   server_name {{ listen_config.listen_host }};
+  access_log            /var/log/nginx/filter.log  main;
 {% if listen_config.tls == False %}
   # no tls
 {% elif listen_config.tls_crt_valid and listen_config.tls_key_valid %}
