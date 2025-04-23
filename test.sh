@@ -1,4 +1,5 @@
 docker rm -f test
+docker build -f .ci/Dockerfile -t test:v0.1 .
 for line in $(find test.d -type f -iname '*.sh'|grep ${1:-sh})
 do
   DIR_NAME=$(dirname $line)

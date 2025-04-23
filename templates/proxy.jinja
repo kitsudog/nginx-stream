@@ -1,25 +1,24 @@
 server {
-  server_name         _;
-  server_tokens       off;
-  listen              {{ proxy_listen_port }};
+    server_name         _;
+    server_tokens       off;
+    listen              {{ proxy_listen_port }};
 
-  set $dest_host      $http_host;
-  set $dest_proto     "https";
-  set $dest_port      "";
-  set $dest_ip        "0.0.0.0";
-  set $full_url       "#";
-  {% include 'proxy_cookie.conf' %}
-  {% include 'proxy_core.conf' %}
-  location / {
-    {% include 'proxy_root.conf' %}
-  }
+    set $dest_host      $http_host;
+    set $dest_proto     "https";
+    set $dest_port      "";
+    set $dest_ip        "0.0.0.0";
+    set $full_url       "#";
+    {% include 'proxy_cookie.conf' %}
+    {% include 'proxy_core.conf' %}
+    location / {
+        {% include 'proxy_root.conf' %}
+    }
 
-  # PROXY START
-{% for proxy_config in proxy_config_list %}
-  location /{{ proxy_config.host }}/ {
-    {% include 'proxy_location.jinja' %}
-  }
-{% endfor %}
-  # PROXY END
-
+    # PROXY START
+    {% for proxy_config in proxy_config_list %}
+        location /{{ proxy_config.host }}/ {
+        {% include 'proxy_location.jinja' %}
+    }
+    {% endfor %}
+    # PROXY END
 }

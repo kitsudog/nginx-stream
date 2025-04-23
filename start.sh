@@ -54,7 +54,8 @@ if [ -s /test.sh ];then
   nginx
   tcpdump -s 0 -w /test.pcap -i any &
   sleep 3
-  /test.sh > /test.out 2>&1
+  cat ${CONFIG_FILE:-/etc/nginx/nginx.conf}|awk '{print NR"\t"$0}' > /test.out
+  /test.sh >> /test.out 2>&1
   if [ $? -eq 0 ];then
     echo ok >> /test.out
   else

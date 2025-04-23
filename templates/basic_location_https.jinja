@@ -1,5 +1,5 @@
 proxy_set_header                X-Forwarded-Proto https;
-{% if location.client_tls_crt_valid and location.client_tls_key_valid -%}
+{% if location.client_tls_crt_valid and location.client_tls_key_valid %}
     set $full_url               "https://{{ location.host }}:{{ location.port }}{{ location.url }}";
     proxy_ssl_certificate       /etc/nginx/certs/{{ location.client_tls }}-client.crt;
     proxy_ssl_certificate_key   /etc/nginx/certs/{{ location.client_tls }}-client.key;

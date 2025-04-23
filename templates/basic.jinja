@@ -2,7 +2,7 @@
 {% if listen_config.ex %}
     # EX GATEWAY START
     server {
-    {% include 'basic_ex.jinja' %}
+        {% include 'basic_ex.jinja' %}
     }
     # EX GATEWAY END
 {% endif %}
@@ -12,9 +12,8 @@
         {% include 'basic_location_geo_map.jinja' %}
     }
     # GEO END
-{% endif -%}
+{% endif %}
 server {
-    set                 $dest_port  0;
     server_name         {{ listen_config.listen_host }};
     {% if not listen_config.ex %}
         {% include 'basic_listen_ex.jinja' %}

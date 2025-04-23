@@ -1,7 +1,7 @@
-{%- if listen_config.header %}
+{% if listen_config.header %}
     # HEADER START
-    {%- for header in listen_config.header.split(";") %}
+    {% for header in listen_config.header.split(";") %}
         add_header {{ header.partition("=")[0] }} "{{ header.partition("=")[-1] }}" always;
-    {%- endfor %}
+    {% endfor %}
     # HEADER END
-{%- endif %}
+{% endif %}

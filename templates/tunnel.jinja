@@ -1,13 +1,13 @@
 {% if tunnel_config_list %}
     # HTTPS TUNNEL START
-    map             $ssl_preread_server_name $backend_name {
-    {%- for stream in tunnel_config_list %}
+    map $ssl_preread_server_name $backend_name {
+    {% for stream in tunnel_config_list %}
         {{ stream.host }} tunnel_{{ stream.id }};
-    {%- endfor %}
+    {% endfor %}
     }
     {% for stream in tunnel_config_list %}
         upstream tunnel_{{ stream.id }} {
-        server {{ stream.host }}:{{ stream.listen_port }};
+            server {{ stream.host }}:{{ stream.listen_port }};
         }
     {% endfor %}
     server {

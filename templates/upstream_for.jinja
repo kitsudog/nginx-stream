@@ -1,5 +1,5 @@
 # UPSTREAM START
-{%- for listen_config in listen_config_list %}
+{% for listen_config in listen_config_list %}
     upstream LISTEN_{{ loop.index }} {
         {% include 'upstream.jinja' %}
     }

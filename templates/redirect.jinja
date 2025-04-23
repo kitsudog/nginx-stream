@@ -1,7 +1,7 @@
 listen      {{ redirect_config.listen_port }};
 server_name {{ redirect_config.host }};
-{%- for redirect_config_location in redirect_config.location_list %}
+{% for redirect_config_location in redirect_config.location_list %}
     location {{ redirect_config_location.location }} {
         {% include 'redirect_location.jinja' %}
     }
-{%- endfor %}
+{% endfor %}

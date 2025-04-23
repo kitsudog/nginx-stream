@@ -2,16 +2,16 @@
     # no tls
 {% elif listen_config.tls_crt_valid and listen_config.tls_key_valid %}
     # active tls start
-    listen {{ listen_config.tls_listen_port }} ssl;
-    ssl_session_timeout 5m;
-    ssl_session_cache shared:SSL:50m;
-    ssl_session_tickets off;
-    ssl_certificate /etc/nginx/certs/{{ listen_config.tls }}.crt;
-    ssl_certificate_key /etc/nginx/certs/{{ listen_config.tls }}.key;
+    listen                      {{ listen_config.tls_listen_port }} ssl;
+    ssl_session_timeout         5m;
+    ssl_session_cache           shared:SSL:50m;
+    ssl_session_tickets         off;
+    ssl_certificate             /etc/nginx/certs/{{ listen_config.tls }}.crt;
+    ssl_certificate_key         /etc/nginx/certs/{{ listen_config.tls }}.key;
     # active tls end
 {% elif not tls_crt_valid %}
     # crt file [/etc/nginx/certs/{{ listen_config.tls }}.crt] not found
 {% elif not tls_key_valid %}
     # crt file [/etc/nginx/certs/{{ listen_config.tls }}.key] not found
 {% endif %}
-listen {{ listen_config.listen_port }};
+listen                          {{ listen_config.listen_port }};

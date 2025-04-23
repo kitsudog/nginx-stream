@@ -1,6 +1,10 @@
 <html lang="en">
-<head><title>redirect</title></head>
+<head>
+    <title>redirect</title>
+</head>
 <body>
-<script type="text/javascript">window.location.href = "{{ redirect_config_location.url2 }}" + location.pathname.replace(/^\{{ redirect_config_location.location }}/, "/") + location.search + location.hash;</script>
+    <script type="text/javascript">
+        window.location.href = "{{ redirect_config_location.url2 }}" + location.pathname.replace(/^\{{ redirect_config_location.location }}/, "/") + location.search + location.hash;
+    </script>
 </body>
 </html>

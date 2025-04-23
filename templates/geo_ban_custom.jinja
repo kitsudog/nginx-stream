@@ -1,18 +1,18 @@
 location @custom {
     {% if default_ban_header %}
         {% for header in default_ban_header.split(";") %}
-            add_header    {{ header.partition("=")[0] }} "{{ header.partition("=")[-1] }}" always;
+            add_header      {{ header.partition("=")[0] }} "{{ header.partition("=")[-1] }}" always;
         {% endfor %}
     {% endif %}
-    set                 $dest_host  $http_host;
+    set                     $dest_host  $http_host;
     {% if default_geo_redirect %}
-        set             $full_url   "#ban-302#";
-        return          302         "{{ default_geo_redirect }}";
+        set                 $full_url   "#ban-302#";
+        return 302          "{{ default_geo_redirect }}";
     {% elif default_geo_html %}
-        set             $full_url   "#ban-html#";
-        return          403         "{{ default_geo_html }}";
+        set                 $full_url   "#ban-html#";
+        return 403          "{{ default_geo_html }}";
     {% else %}
-        set             $full_url   "#ban-403#";
+        set                 $full_url   "#ban-403#";
         return 403;
     {% endif %}
 }

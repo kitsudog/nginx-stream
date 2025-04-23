@@ -1,7 +1,6 @@
-{% if default_geo_white or default_geo_black -%}
-
+{% if default_geo_white or default_geo_black %}
     if ($default_user_type = ban) {
         return 403;
     }
     error_page            403 = @custom;
-{% endif -%}
+{% endif %}

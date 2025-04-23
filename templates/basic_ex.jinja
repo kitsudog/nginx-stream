@@ -1,15 +1,15 @@
-server_name {{ listen_config.listen_host }};
-access_log            /var/log/nginx/filter.log  main;
+server_name                     {{ listen_config.listen_host }};
+access_log                      /var/log/nginx/filter.log  main;
 {% if listen_config.tls == False %}
     # no tls
 {% elif listen_config.tls_crt_valid and listen_config.tls_key_valid %}
     # active tls start
-    listen {{ listen_config.tls_listen_port }} ssl;
-    ssl_session_timeout 5m;
-    ssl_session_cache shared:SSL:50m;
-    ssl_session_tickets off;
-    ssl_certificate /etc/nginx/certs/{{ listen_config.tls }}.crt;
-    ssl_certificate_key /etc/nginx/certs/{{ listen_config.tls }}.key;
+    listen                      {{ listen_config.tls_listen_port }} ssl;
+    ssl_session_timeout         5m;
+    ssl_session_cache           shared:SSL:50m;
+    ssl_session_tickets         off;
+    ssl_certificate             /etc/nginx/certs/{{ listen_config.tls }}.crt;
+    ssl_certificate_key         /etc/nginx/certs/{{ listen_config.tls }}.key;
     # active tls end
 {% elif not tls_crt_valid %}
     # crt file [/etc/nginx/certs/{{ listen_config.tls }}.crt] not found
@@ -17,10 +17,10 @@ access_log            /var/log/nginx/filter.log  main;
     # crt file [/etc/nginx/certs/{{ listen_config.tls }}.key] not found
 {% endif %}
 listen 80;
-ssl_verify_client off;
+ssl_verify_client               off;
 {% if listen_config.client_size %}
-    client_max_body_size {{ listen_config.client_size }};
-    client_body_buffer_size 10m;
+    client_max_body_size        {{ listen_config.client_size }};
+    client_body_buffer_size     10m;
 {% endif %}
 location / {
     {% include 'basic_ex_location_root.jinja' %}

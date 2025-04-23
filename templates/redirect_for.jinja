@@ -1,7 +1,7 @@
 # REDIRECT START
-{%- for redirect_config in redirect_config_list %}
+{% for redirect_config in redirect_config_list %}
 server {
-  {% include 'redirect.jinja' %}
+    {% include 'redirect.jinja' %}
 }
-{%- endfor %}
+{% endfor %}
 # REDIRECT END

@@ -1,4 +1,4 @@
-proxy_set_header          Host {{ proxy_config.host }};
-proxy_ignore_client_abort on;
-proxy_ssl_server_name     on;
-proxy_pass                {{ proxy_config.proto }}://{{ proxy_config.host }}/;
+proxy_set_header Host       {{ proxy_config.host }};
+proxy_ignore_client_abort   on;
+proxy_ssl_server_name       on;
+proxy_pass                  {{ proxy_config.proto }}://{{ proxy_config.host }}/;

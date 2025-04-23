@@ -4,7 +4,7 @@ location        / {
 {% if default_jwt_ex %}
     # DEFAULT_JWT_EX: {{ default_jwt_ex }}
     access_by_lua_block {
-    {% include 'jwt.lua' %}
+        {% include 'jwt.lua' %}
     }
 {% endif %}
 {% include 'lua-body.jinja' %}

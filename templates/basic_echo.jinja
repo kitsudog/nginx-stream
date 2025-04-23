@@ -1,5 +1,5 @@
 {% if listen_config.echo %}
     location /{{ listen_config.echo.lower() == "true" and "echo" or listen_config.echo }} {
-    proxy_pass http://127.0.0.1:8000/echo;
+        proxy_pass http://127.0.0.1:8000/echo;
     }
 {% endif %}
