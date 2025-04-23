@@ -1,0 +1,36 @@
+resolver            {{ dns }}               valid=60s ipv6=off;
+include             /etc/nginx/mime.types;
+default_type        application/octet-stream;
+charset             'utf-8';
+keepalive_timeout   65;
+sendfile            on;
+gzip_types          text/plain text/css application/javascript application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript;
+#tcp_nopush         on;
+{% include 'log.jinja' %}
+{% include 'default_map.conf' %}
+{% include 'default_proxy.conf' %}
+{% include 'default_client_size.jinja' %}
+{% include 'cache.conf' %}
+{% include 'blackhole.conf' %}
+{#  lua_package_path "/usr/local/openresty/lualib/resty/redis.lua;";#}
+{% if default_forward %}
+    # DEFAULT_FORWARD: {{ default_forward }}
+    {% include 'http_default_forward_geo.jinja' %}
+    server {
+        {% dumpvar global %}
+        listen          80;
+        server_name     _;
+        {% include 'http_default_forward.jinja' %}
+    }
+{% else %}
+    server {
+        {% dumpvar global %}
+        listen          80;
+        server_name     _;
+        {% include 'http_proxy.jinja' %}
+    }
+    {% include 'proxy.jinja' %}
+{% endif %}
+{% include 'upstream_for.jinja' %}
+{% include 'basic_for.jinja' %}
+{% include 'redirect_for.jinja' %}

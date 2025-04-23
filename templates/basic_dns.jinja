@@ -1,0 +1,3 @@
+{% if listen_config.server_dns %}
+    resolver {{ listen_config.server_dns }} valid=60s;
+{% endif %}

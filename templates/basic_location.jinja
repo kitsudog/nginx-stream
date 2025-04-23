@@ -1,0 +1,27 @@
+{% dumpvar location %}
+
+{% if location.jwt_ex %}
+    access_by_lua_block {
+    {% include 'jwt.lua' %}
+    }
+{% endif %}
+
+{% if location.geo_white or location.geo_black %}
+    {% include 'basic_location_geo.jinja' %}
+{% endif %}
+{% include 'basic_location_header.jinja' %}
+{% if location.https %}
+    {% include 'basic_location_https.jinja' %}
+{% else %}
+    {% include 'basic_location_http.jinja' %}
+{% endif %}
+proxy_redirect              default;
+{% if location.cache %}
+    {% include 'basic_location_cache.jinja' %}
+{% endif %}
+{% if location.cross_domain %}
+    {% include 'basic_location_cors.jinja' %}
+{% endif %}
+{% if listen_config.config_location %}
+    {% include 'basic_location_include.jinja' %}
+{% endif %}

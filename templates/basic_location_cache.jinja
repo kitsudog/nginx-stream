@@ -1,0 +1,12 @@
+# active cache start
+proxy_buffering         on;
+proxy_cache_methods     GET HEAD;
+proxy_cache             {{ location.cache_type | default('cache_1min') }};
+proxy_cache_key         {{ location.cache_key | default('$scheme$request_method$host$request_uri') }};
+proxy_cache_valid       200 {{ location.cache_expire | default('1m') }};
+proxy_cache_valid       404 502 503 504 1m;
+{%- if location.cache_force and location.cache_force.lower() == "true" %}
+    proxy_ignore_headers    Set-Cookie X-Accel-Expires Expires Cache-Control;
+{%- endif %}
+add_header              X-Proxy-Cache   $upstream_cache_status always;
+# active cache end

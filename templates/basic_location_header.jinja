@@ -1,0 +1,8 @@
+proxy_ssl_server_name       on;
+proxy_ssl_name              {{ location.proxy_host }};
+proxy_set_header            Upgrade                             $http_upgrade;
+proxy_set_header            Connection                          $proxy_connection;
+add_header                  FROM                                nginx-stream always;
+proxy_set_header            X-FROM                              "{{ location.listen_host }}";
+proxy_set_header            Host                                "{{ location.proxy_host }}";
+set                         $dest_host                          "{{ location.host }}";

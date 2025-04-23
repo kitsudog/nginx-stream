@@ -1,0 +1,8 @@
+{% macro generate_location_vars(prefix, obj) %}
+    {% for key, value in obj.items() %}
+        {% set var_name = "__" + prefix + "_" + key %}
+        set {{ var_name }} "{{ value }}";
+    {% endfor %}
+{% endmacro %}
+
+{{ generate_location_vars("location", location) }}

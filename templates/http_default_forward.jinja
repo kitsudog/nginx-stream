@@ -1,0 +1,26 @@
+access_log      /var/log/nginx/access.log  main;
+set             $dest_port  0;
+location        / {
+{% if default_jwt_ex %}
+    # DEFAULT_JWT_EX: {{ default_jwt_ex }}
+    access_by_lua_block {
+    {% include 'jwt.lua' %}
+    }
+{% endif %}
+{% include 'lua-body.jinja' %}
+{% include 'http_default_forward_ban.jinja' %}
+add_header            FROM        nginx-stream always;
+proxy_set_header      X-FROM      $http_host;
+proxy_set_header      Host        $http_host;
+set                   $dest_host  $http_host;
+set                   $dest_port  80;
+set                   $full_url   "{{ default_forward }}";
+proxy_pass            "{{ default_forward }}";
+proxy_redirect        default;
+proxy_ssl_server_name on;
+proxy_ssl_name        $http_host;
+proxy_set_header      Upgrade     $http_upgrade;
+proxy_set_header      Connection  $proxy_connection;
+}
+
+{% include 'http_error_page.conf' %}

@@ -1,0 +1,5 @@
+{% for location in listen_config.location_config_list %}
+    location {{ location.listen_path }} {
+        {% include 'basic_location.jinja' %}
+    }
+{% endfor %}

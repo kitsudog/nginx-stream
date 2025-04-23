@@ -1,0 +1,8 @@
+{%- if stream.udp %}
+    listen                  {{ stream.listen_port }} udp;
+{%- else %}
+    listen                  {{ stream.listen_port }};
+{%- endif %}
+proxy_connect_timeout   {{ stream.connect_timeout }}s;
+proxy_timeout           {{ stream.timeout }}s;
+proxy_pass              {{ stream.host }}:{{ stream.port }};

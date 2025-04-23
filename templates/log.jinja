@@ -1,0 +1,8 @@
+log_format main     # default
+{#               #} '$remote_addr $http_x_forwarded_for '
+{#               #} '[$http_x_real_ip $http_x_forwarded_proto $http_x_forwarded_host $http_host $remote_user]'
+{#               #} '[$time_local] $request_method [[$request_uri]] $status $body_bytes_sent "$http_referer" '
+{#               #} '"$http_user_agent" "$http_x_forwarded_for" '
+{#               #} '[Proxy-pass=$upstream_addr @ $dest_host:$dest_port] $full_url [cache=$upstream_cache_status] '
+{#               #} '[tag=$request_tag]';
+access_log          /var/log/nginx/access.log  main;

@@ -1,0 +1,11 @@
+default ban;
+{% if listen_config.geo_white -%}
+    {% for geo in listen_config.geo_white.split(";") %}
+        {{ geo }} white;
+    {% endfor %}
+{% endif %}
+{% if listen_config.geo_black %}
+    {% for geo in listen_config.geo_black.split(";") %}
+        {{ geo }} ban;
+    {% endfor %}
+{% endif %}

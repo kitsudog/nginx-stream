@@ -1,0 +1,33 @@
+{%- if redirect_config_location.mode == "normal" %}
+    set                 $dest_host      "#REDIRECT#";
+    {%- if redirect_config_location.location == "/" %}
+        set             $full_url       "{{ redirect_config_location.url2 }}$request_uri";
+        return          302             "{{ redirect_config_location.url2 }}$request_uri";
+    {%- elif not redirect_config_location.keep_prefix %}
+        set             $full_url       "{{ redirect_config_location.url2 }}/$1";
+        rewrite         ^{{ redirect_config_location.location }}(.*)$ {{ redirect_config_location.url2 }}/$1 break;
+    {% else %}
+        set             $full_url       "{{ redirect_config_location.url2 }}$request_uri";
+        return          302             "{{ redirect_config_location.url2 }}$request_uri";
+    {%- endif %}
+{%- elif redirect_config_location.mode == "no_uri" %}
+    set                 $full_url       "{{ redirect_config_location.url }}";
+    set                 $dest_host      "#REDIRECT-DOMAIN#";
+    return              302             "{{ redirect_config_location.url }}";
+{%- elif redirect_config_location.mode == "hash" %}
+    add_header          Content-Type    text/html;
+    set                 $full_url       "#REDIRECT-WITH-HASH#";
+    set                 $dest_host      "#REDIRECT-WITH-HASH#";
+    {%- if redirect_config_location.location == "/" %}
+        {% set raw_content %}{% include 'redirect_location_root.jinja'%}{% endset %}
+        return 200 '{{ raw_content | replace("\n","") }}';
+    {%- elif not redirect_config_location.keep_prefix %}
+        {% set raw_content %}{% include 'redirect_location_keep_prefix.jinja'%}{% endset %}
+        return 200 '{{ raw_content | replace("\n","") }}';
+    {%-else %}
+        {% set raw_content %}{% include 'redirect_location_other.jinja'%}{% endset %}
+        return 200 '{{ raw_content | replace("\n","") }}';
+    {%- endif %}
+{%- else %}
+    add_header 'stream-msg' 'no support {{ redirect_config_location.mode }}';
+{% endif %}

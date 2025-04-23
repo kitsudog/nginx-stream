@@ -50,4 +50,20 @@ if [ "${EX}" == "TRUE" ];then
     python3 /app/app.py &
 fi
 python3 tunnel.py
-/docker-entrypoint.sh nginx -g "daemon off;"
+if [ -s /test.sh ];then
+  nginx
+  tcpdump -s 0 -w /test.pcap -i any &
+  sleep 3
+  /test.sh > /test.out 2>&1
+  if [ $? -eq 0 ];then
+    echo ok >> /test.out
+  else
+    echo fail >> /test.out
+  fi
+  cat /test.out
+  sleep 3
+  ls -l /test.pcap
+  exit 1
+else
+  /docker-entrypoint.sh nginx -g "daemon off;"
+fi

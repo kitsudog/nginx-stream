@@ -1,0 +1,14 @@
+{# 只有默认转发才支持ip名单 #}
+{% if default_geo_white or default_geo_black %}
+    # GEO START
+    geo $http_x_forwarded_for $default_user_type {
+    {{ "%-20s" % "default" }} ban;
+    {%- if default_geo_white -%}{%- for geo in default_geo_white.split(";") %}
+        {{ "%-20s" % geo }} white;
+    {%- endfor %}{%- endif -%}
+    {% if default_geo_black %}{%- for geo in default_geo_black.split(";") %}
+        {{ "%-20s" % geo }} ban;
+    {%- endfor %}{% endif %}
+    }
+    # GEO END
+{% endif %}

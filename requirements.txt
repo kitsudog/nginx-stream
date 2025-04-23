@@ -9,3 +9,4 @@ dnspython==1.16.0
 elasticsearch
 jinja2
 Pillow
+nginxfmt

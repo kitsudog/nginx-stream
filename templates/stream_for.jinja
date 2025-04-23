@@ -1,0 +1,8 @@
+# STREAM START
+{% for stream in stream_config_list %}
+    server {
+        {% dumpvar stream %}
+        {% include 'stream_server.jinja' %}
+    }
+{% endfor -%}
+# STREAM END

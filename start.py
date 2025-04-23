@@ -1,11 +1,44 @@
 #!/usr/bin/env python3
 import os
+import re
 from collections import ChainMap, defaultdict
 from typing import Dict, List
 
+import nginxfmt
 from jinja2 import Environment, FileSystemLoader
+from jinja2.ext import Extension
+
+
+# noinspection PyMethodMayBeStatic
+class DumpVarExtension(Extension):
+    tags = {'dumpvar'}
+
+    def __init__(self, environment):
+        super(DumpVarExtension, self).__init__(environment)
+
+    def parse(self, parser):
+        lineno = next(parser.stream).lineno
+        args = [parser.parse_expression()]
+        body = []
+        var = args[0]
+        from jinja2 import nodes
+        return nodes.CallBlock(self.call_method("_dump", [nodes.Const(var.name), var]), [], [], body).set_lineno(
+            lineno)
+
+    # noinspection PyUnusedLocal
+    def _dump(self, var_name, var, caller):
+        if os.environ.get("DEBUG", "false").lower() == "true":
+            ret = []
+            for k, v in sorted(dict(var).items()):
+                if type(v) in {int, str, bool, float}:
+                    ret.append(f'''set $__{var_name}_{k} "{v}";''')
+            return "\n".join(ret)
+        else:
+            return ""
+
 
 jinja2_env = Environment(loader=FileSystemLoader('templates'))
+jinja2_env.add_extension(DumpVarExtension)
 CONFIG_DIR = os.environ.get("CONFIG_DIR", "/etc/nginx/conf.d")
 
 
@@ -54,17 +87,30 @@ def render(template, *, default: Dict = {}, **kwargs):
         if key.startswith("_"):
             continue
         data[key] = value
+
     return jinja2_env.get_template(template).render(data)
 
 
 # noinspection HttpUrlsUsage
 def gen_nginx_config(
-        listen_config_list, stream_config_list, proxy_config_list, redirect_config_list,
-        tunnel_config_list, listen_port=80,
-        dns="8.8.8.8", config_file="/etc/nginx/nginx.conf", client_size="10m", external_host="$http_host",
-        external_proto="http", proxy_listen_port=82, disable_proxy="FALSE", default_forward=False, default_jwt_ex=False,
-        default_geo_white="", default_geo_black="", default_ban_header="", default_geo_redirect="", default_geo_html="",
+        listen_config_list, stream_config_list, proxy_config_list, redirect_config_list, tunnel_config_list,
+        listen_port=80,
+        dns="8.8.8.8",
+        config_file="/etc/nginx/nginx.conf",
+        client_size="10m",
+        external_host="$http_host",
+        external_proto="http",
+        proxy_listen_port=82,
+        disable_proxy="FALSE",
+        default_forward=False,
+        default_jwt_ex=False,
+        default_geo_white="",
+        default_geo_black="",
+        default_ban_header="",
+        default_geo_redirect="",
+        default_geo_html="",
         tunnel_all_https=False,
+        events=True,
 ):
     disable_proxy = str(disable_proxy).lower() in {"true", "1"}
     kwargs = locals().copy()
@@ -137,11 +183,14 @@ def gen_nginx_config(
     )
     redirect_config_list.clear()
     redirect_config_list.extend(new_config_list)
+    kwargs["global"] = kwargs
     content = render("nginx.jinja", **kwargs)
     if os.environ.get("RECORD_PROXY") == "TRUE":
         content.replace('proxy_pass "${full_url}";', 'proxy_pass "http://localhost:81/${full_url}";')
+    f = nginxfmt.Formatter(options=nginxfmt.FormatterOptions())
+    formatted_text = f.format_string(content)
     with open(config_file, mode="w") as fout:
-        fout.write(content)
+        fout.write(re.sub(r"\n(\s*\n)*", "\n", formatted_text))
 
 
 def env_params(func):
@@ -244,7 +293,12 @@ def main():
         config['listen_path'] = config['listen_path'] or '/'
         config['url'] = config['url'] or config['listen_path']
         config['proxy_host'] = config['proxy_host'] or ('$http_host' if forward else '$proxy_host')
-        config.update(dict(map(lambda kv: (kv[0].lower(), kv[1]), kwargs.items())))
+        config.update(dict(
+            ChainMap(
+                dict(map(lambda kv: (kv[0].lower(), kv[1]), kwargs.items())),
+                {"client_size": os.environ.get("CLIENT_SIZE")},
+            )
+        ))
         print(f"LISTEN[{line}]=>[{config}]")
         config['config'] = f"{k}={line}"
         return config

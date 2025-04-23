@@ -1,192 +1,31 @@
-{%- for listen_config in listen_config_list %}
 # CONFIG {{ listen_config.config }} START
 {% if listen_config.ex %}
-# EX GATEWAY START
-server {
-  server_name {{ listen_config.listen_host }};
-  access_log            /var/log/nginx/filter.log  main;
-{% if listen_config.tls == False %}
-  # no tls
-{% elif listen_config.tls_crt_valid and listen_config.tls_key_valid %}
-  # active tls start
-  listen {{ listen_config.tls_listen_port }} ssl;
-  ssl_session_timeout 5m;
-  ssl_session_cache shared:SSL:50m;
-  ssl_session_tickets off;
-  ssl_certificate /etc/nginx/certs/{{ listen_config.tls }}.crt;
-  ssl_certificate_key /etc/nginx/certs/{{ listen_config.tls }}.key;
-  # active tls end
-{% elif not tls_crt_valid %}
-  # crt file [/etc/nginx/certs/{{ listen_config.tls }}.crt] not found
-{% elif not tls_key_valid %}
-  # crt file [/etc/nginx/certs/{{ listen_config.tls }}.key] not found
-{% endif %}
-  listen 80;
-  ssl_verify_client off;
-{% if listen_config.client_size %}
-  client_max_body_size {{ listen_config.client_size }};
-  client_body_buffer_size 10m;
-{% endif %}
-  location / {
-    proxy_set_header        Host ${http_host};
-    set                     $dest_host          "#internal-server#";
-    set                     $full_url           "http://127.0.0.1:8000/";
-    proxy_pass              http://127.0.0.1:8000/;
-    proxy_redirect          default;
-    proxy_ssl_server_name   on;
-    proxy_set_header        Upgrade             $http_upgrade;
-    proxy_set_header        Connection          $proxy_connection;
-  }
-}
-# EX GATEWAY END
-{% endif %}
-{% if listen_config.geo_white or listen_config.geo_black %}
-# GEO START
-geo $http_x_forwarded_for $user_type_{{ listen_config.i }} {
-  {{ "%-20s" % "default" }} ban;
-  {%- if listen_config.geo_white -%}{%- for geo in listen_config.geo_white.split(";") %}
-  {{ "%-20s" % geo }} white;
-  {%- endfor %}{%- endif -%}
-  {% if listen_config.geo_black %}{%- for geo in listen_config.geo_black.split(";") %}
-  {{ "%-20s" % geo }} ban;
-  {%- endfor %}{% endif %}
-}
-# GEO END
-{% endif -%}
-server {
-  server_name {{ listen_config.listen_host }};
-  set             $dest_port  0;
-{% if not listen_config.ex %}
-{% if listen_config.tls == False %}
-  # no tls
-{% elif listen_config.tls_crt_valid and listen_config.tls_key_valid %}
-  # active tls start
-  listen {{ listen_config.tls_listen_port }} ssl;
-  ssl_session_timeout 5m;
-  ssl_session_cache shared:SSL:50m;
-  ssl_session_tickets off;
-  ssl_certificate /etc/nginx/certs/{{ listen_config.tls }}.crt;
-  ssl_certificate_key /etc/nginx/certs/{{ listen_config.tls }}.key;
-  # active tls end
-{% elif not tls_crt_valid %}
-  # crt file [/etc/nginx/certs/{{ listen_config.tls }}.crt] not found
-{% elif not tls_key_valid %}
-  # crt file [/etc/nginx/certs/{{ listen_config.tls }}.key] not found
-{% endif %}
-  listen {{ listen_config.listen_port }};
-{% else %}
-  # real server
-  listen 81;
-{% endif %}
-  ssl_verify_client off;
-{% if listen_config.client_size %}
-  client_max_body_size {{ listen_config.client_size }};
-  client_body_buffer_size 10m;
-{% endif %}
-{% if listen_config.server_dns %}
-  resolver {{ listen_config.server_dns }} valid=60s;
-{% endif %}
-{%- if listen_config.header %}
-  # HEADER START
-{%- for header in listen_config.header.split(";") %}
-  add_header {{ "%-10s" % header.partition("=")[0] }} "{{ header.partition("=")[-1] }}" always;
-{%- endfor %}
-  # HEADER END
-{%- endif %}
-{% if listen_config.geo_white or listen_config.geo_black %}
-  location @custom {
-    {%- if listen_config.ban_header %}{%- for header in listen_config.ban_header.split(";") %}
-    add_header      {{ "%-11s" % header.partition("=")[0] }} "{{ header.partition("=")[-1] }}" always;
-    {%- endfor %}{%- endif %}
-    set             $dest_host  $http_host;
-    {%- if listen_config.geo_redirect %}
-    set             $full_url   "#ban-302#";
-    return          302         "{{ listen_config.geo_redirect  }}";
-    {%- elif listen_config.geo_html %}
-    set             $full_url   "#ban-html#";
-    return          403         {{ listen_config.geo_html }};
-    {%- else %}
-    set             $full_url   "#ban-403#";
-    return 403;
-    {%- endif %}
-  }
-{% endif -%}
-{% if listen_config.echo %}
-  location /{{ listen_config.echo.lower() == "true" and "echo" or listen_config.echo }} {
-    proxy_pass http://127.0.0.1:8000/echo;
-  }
-{% endif %}
-{% for location in listen_config.location_config_list %}
-  location {{ location.listen_path }} {
-    {% if location.jwt_ex %}
-    {% filter indent(2) %}{% include 'lua.jinja' %}{% endfilter %}
-    {% endif %}
-    {% include 'lua-body.jinja' %}
-
-{% if location.geo_white or location.geo_black %}
-    if ($user_type_{{ location.i }} = ban) {
-      return 403;
+    # EX GATEWAY START
+    server {
+    {% include 'basic_ex.jinja' %}
     }
-    error_page                  403 = @custom;
+    # EX GATEWAY END
 {% endif %}
-    add_header                  FROM   nginx-stream always;
-    proxy_set_header            X-FROM {{ location.listen_host }};
-    proxy_set_header            Host {{ location.proxy_host }};
-    set $dest_host              "{{ location.host }}";
-{%- if location.https %}
-    proxy_set_header            X-Forwarded-Proto https;
-{% if location.client_tls_crt_valid and location.client_tls_key_valid -%}
-    proxy_ssl_certificate       /etc/nginx/certs/{{ location.client_tls }}-client.crt;
-    proxy_ssl_certificate_key   /etc/nginx/certs/{{ location.client_tls }}-client.key;
-    set $full_url               "https://{{ location.host }}:{{ location.port }}{{ location.url }}";
-    proxy_pass                  "https://{{ location.host }}:{{ location.port }}{{ location.url }}";
-{% else %}
-    set $full_url               "https://{{ location.host }}:{{ location.port }}{{ location.url }}";
-    proxy_pass                  "https://{{ location.host }}:{{ location.port }}{{ location.url }}";
-{% endif %}
-{% else %}
-    set $full_url               "http://{{ location.host }}:{{ location.port }}{{ location.url }}";
-    proxy_pass                  "http://{{ location.host }}:{{ location.port }}{{ location.url }}";
-{%- endif %}
-{%- if location.cache and location.cache.lower() == "true" %}
-    # active cache start
-    proxy_buffering         on;
-    proxy_cache_methods     GET HEAD;
-    proxy_cache             {{ location.cache_type | default('cache_1min') }};
-    proxy_cache_key         {{ location.cache_key | default('$scheme$request_method$host$request_uri') }};
-    proxy_cache_valid       200 {{ location.cache_expire | default('1m') }};
-    proxy_cache_valid       404 502 503 504 1m;
-{%- if location.cache_force and location.cache_force.lower() == "true" %}
-    proxy_ignore_headers    Set-Cookie X-Accel-Expires Expires Cache-Control;
-{%- endif %}
-    add_header              X-Proxy-Cache   $upstream_cache_status always;
-    # active cache end
-{% endif %}
-    proxy_redirect          default;
-    proxy_ssl_server_name   on;
-    proxy_ssl_name          {{ location.proxy_host }};
-    proxy_set_header        Upgrade     $http_upgrade;
-    proxy_set_header        Connection  $proxy_connection;
-{%- if location.cross_domain is true or location.cross_domain.lower() == "true" %}
-    # active cross_domain start
-    add_header 'Access-Control-Allow-Origin'      '${http_origin}' always;
-    add_header 'Access-Control-Allow-Methods'     'GET, POST, OPTIONS' always;
-    add_header 'Access-Control-Allow-Headers'     'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range' always;
-    add_header 'Access-Control-Expose-Headers'    'Content-Length,Content-Range' always;
-    # active cross_domain over
-{%- elif location.cross_domain  %}
-    # active cross_domain start
-    add_header 'Access-Control-Allow-Origin'      '{{ location.cross_domain }}' always;
-    add_header 'Access-Control-Allow-Methods'     'GET, POST, OPTIONS' always;
-    add_header 'Access-Control-Allow-Headers'     'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range' always;
-    add_header 'Access-Control-Expose-Headers'    'Content-Length,Content-Range' always;
-    # active cross_domain over
-{%- endif %}
-{%- if listen_config.config_location %}
-    include "{{ listen_config.config_location }}";
-{%- endif %}
-  }
-{% endfor %}
+{% if listen_config.geo_white or listen_config.geo_black %}
+    # GEO START
+    geo $http_x_forwarded_for $user_type_{{ listen_config.i }} {
+        {% include 'basic_location_geo_map.jinja' %}
+    }
+    # GEO END
+{% endif -%}
+server {
+    set                 $dest_port  0;
+    server_name         {{ listen_config.listen_host }};
+    {% if not listen_config.ex %}
+        {% include 'basic_listen_ex.jinja' %}
+    {% else %}
+        {% include 'basic_listen.jinja' %}
+    {% endif %}
+    ssl_verify_client   off;
+    {% include 'basic_client_size.jinja' %}
+    {% include 'basic_dns.jinja' %}
+    {% include 'basic_header.jinja' %}
+    {% include 'basic_echo.jinja' %}
+    {% include 'basic_location_for.jinja' %}
 }
 # CONFIG {{ listen_config.config }} END
-{% endfor %}

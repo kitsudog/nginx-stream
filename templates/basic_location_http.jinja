@@ -1,0 +1,2 @@
+set $full_url               "http://{{ location.host }}:{{ location.port }}{{ location.url }}";
+proxy_pass                  "http://{{ location.host }}:{{ location.port }}{{ location.url }}";

@@ -1,0 +1,25 @@
+{% if tunnel_config_list %}
+    # HTTPS TUNNEL START
+    map             $ssl_preread_server_name $backend_name {
+    {%- for stream in tunnel_config_list %}
+        {{ stream.host }} tunnel_{{ stream.id }};
+    {%- endfor %}
+    }
+    {% for stream in tunnel_config_list %}
+        upstream tunnel_{{ stream.id }} {
+        server {{ stream.host }}:{{ stream.listen_port }};
+        }
+    {% endfor %}
+    server {
+        listen      443;
+        proxy_pass  $backend_name;
+        ssl_preread on;
+    }
+    # HTTPS TUNNEL END
+{% elif tunnel_all_https %}
+    server {
+        listen      443;
+        proxy_pass  $ssl_preread_server_name:443;
+        ssl_preread on;
+    }
+{% endif %}

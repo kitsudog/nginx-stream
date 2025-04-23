@@ -13,3 +13,9 @@ __pycache__
 /log/
 /*.png
 /cache
+.env-test
+test.out
+test.pcap
+tmp.sh
+/.env
+/nginx.conf
