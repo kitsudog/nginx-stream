@@ -11,5 +11,12 @@ __pycache__
 .env
 /.venv
 /conf.d
+/.args
 /.volume
 /cache
+/test.d
+docker-compose.yaml
+.docker-compose.yaml
+/.env-test
+/*.png
+/*.jpeg

@@ -1,3 +1,4 @@
+docker rm -f test
 for line in $(find test.d -type f -iname '*.sh'|grep ${1:-sh})
 do
   DIR_NAME=$(dirname $line)
@@ -9,17 +10,7 @@ do
 
   :>test.out
   :>test.pcap
-  docker run --rm -it \
-    --env-file `pwd`/.env-test \
-    --add-host test.com:127.0.0.1 \
-    --add-host test1.com:127.0.0.1 \
-    --add-host test2.com:127.0.0.1 \
-    --add-host test3.com:127.0.0.1 \
-    -v $(realpath $line):/test.sh \
-    -v `pwd`/test.out:/test.out \
-    -v `pwd`/test.pcap:/test.pcap \
-    -v `pwd`/keys=/keys \
-    --name test local:v0.1 | sed "s#^#[${FILE_NAME}]: #" 2>&1
+  TEST=$FILE_NAME docker-compose up --remove-orphans 2>&1 | sed "s#^test#${FILE_NAME}#"
   tail -n 1 test.out |grep fail
   if [ $? -eq 0 ];then
     cat test.out
