@@ -8,6 +8,7 @@ gzip_types          text/plain text/css application/javascript application/json 
 #tcp_nopush         on;
 {% include 'log.jinja' %}
 {% include 'default_map.conf' %}
+{% include 'http_default_server.jinja' %}
 {% include 'default_proxy.conf' %}
 {% include 'default_client_size.jinja' %}
 {% include 'cache.conf' %}

@@ -1,5 +1,5 @@
 docker rm -f test
-docker build -f .ci/Dockerfile -t test:v0.1 .
+docker build --platform=linux/amd64 -f .ci/Dockerfile -t test:v0.1 .
 for line in $(find test.d -type f -iname '*.sh'|grep ${1:-sh})
 do
   DIR_NAME=$(dirname $line)
@@ -11,10 +11,11 @@ do
 
   :>test.out
   :>test.pcap
-  TEST=$FILE_NAME docker-compose up --remove-orphans 2>&1 | sed "s#^test#${FILE_NAME}#"
+  TEST=$FILE_NAME docker-compose up --abort-on-container-exit --remove-orphans 2>&1 | sed "s#^test#${FILE_NAME}#"
+  echo container over
   tail -n 1 test.out |grep fail
   if [ $? -eq 0 ];then
-    cat test.out
+    cat test.out | sed "s#^#${FILE_NAME}[fail]: #"
     exit 1
   fi
 done

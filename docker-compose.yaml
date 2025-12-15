@@ -1,0 +1,21 @@
+version: '3'
+services:
+  httpbin:
+    image: kennethreitz/httpbin
+  main:
+    image: test:v0.1
+    container_name: test
+    env_file:
+      - .env-test
+    extra_hosts:
+      - test.com:127.0.0.1
+      - test1.com:127.0.0.1
+      - test2.com:127.0.0.1
+      - test3.com:127.0.0.1
+      - test4.com:127.0.0.1
+      - test5.com:127.0.0.1
+    volumes:
+      - ./test.d/${TEST}.sh:/test.sh
+      - ./test.out:/test.out
+      - ./test.pcap:/test.pcap
+      - ./keys:/keys

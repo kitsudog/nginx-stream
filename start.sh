@@ -5,6 +5,17 @@ if [ -z "$DNS" ];then
     export DNS=$LOCAL_DNS
 fi
 mkdir config -p
+
+CERT_DIR=${CERT_DIR:-/etc/nginx/certs}
+mkdir -p "$CERT_DIR"
+if [ ! -f "$CERT_DIR/default.crt" ]; then
+    DEFAULT_CERT_ORG=${DEFAULT_CERT_ORG:-Nginx}
+    echo "Generating default fallback certificate with O=$DEFAULT_CERT_ORG..."
+    openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+        -keyout "$CERT_DIR/default.key" \
+        -out "$CERT_DIR/default.crt" \
+        -subj "/CN=localhost/O=$DEFAULT_CERT_ORG"
+fi
 usermod -p '' root
 # prepare log to stdout
 if [ $(readlink /var/log/nginx/access.log) = "/dev/stdout" ]
@@ -52,6 +63,8 @@ fi
 python3 tunnel.py
 if [ -s /test.sh ];then
   nginx
+  set +e
+  echo prepare for test
   tcpdump -s 0 -w /test.pcap -i any &
   sleep 3
   cat ${CONFIG_FILE:-/etc/nginx/nginx.conf}|awk '{print NR"\t"$0}' > /test.out

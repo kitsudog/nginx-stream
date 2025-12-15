@@ -1,4 +1,3 @@
-docker-compose.yaml
 /venv
 /.venv
 .vscode/settings.json
