@@ -18,3 +18,4 @@ test.pcap
 tmp.sh
 /.env
 /nginx.conf
+.sisyphus/boulder.json

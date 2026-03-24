@@ -17,10 +17,9 @@ set                   $dest_port  80;
 set                   $full_url   "{{ default_forward }}";
 proxy_pass            "{{ default_forward }}";
 proxy_redirect        default;
+{% include 'proxy_headers.conf' %}
 proxy_ssl_server_name on;
 proxy_ssl_name        $http_host;
-proxy_set_header      Upgrade     $http_upgrade;
-proxy_set_header      Connection  $proxy_connection;
 }
 
 {% include 'http_error_page.conf' %}
